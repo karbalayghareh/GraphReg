@@ -13,7 +13,7 @@ organism = 'human'
 genome='hg38'
 for i in range(1,22+1):
     chr = 'chr'+str(i)
-    filename_seqs = '/media/labuser/STORAGE/GraphReg/data/csv/seqs_bed/'+organism+'/'+genome+'/5kb/sequences_'+chr+'.bed'
+    filename_seqs = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/5kb/sequences_'+chr+'.bed'
     seq_dataframe = pd.DataFrame(data = [], columns = ["chr", "start", "end"])
     chrom = i
 
@@ -43,20 +43,37 @@ for i in range(1,22+1):
 '''
 
 ##### extract hic from the output files of HiCDC+ #####
-cell_line = 'hESC'
-organism = 'human'
-res = '5kb'
-genome='hg38'
 
-for i in range(1,22+1):
+cell_line = 'hESC'           # GM12878/K562/hESC/mESC
+organism = 'human'           # human/mouse
+res = '5kb'                  # 5kb/10kb
+genome = 'hg38'                # hg19/hg38/mm10
+assay_type = 'HiCAR'        # HiC/HiChIP/MicroC/HiCAR
+qval = 0.001                    # 0.1/0.01/0.001
+data_path = '/media/labuser/STORAGE/GraphReg'
+
+if qval == 0.1:
+    fdr = '1'
+elif qval == 0.01:
+    fdr = '01'
+elif qval == 0.001:
+    fdr = '001'
+
+if organism == 'mouse':
+    N = 19
+else:
+    N = 22
+
+
+for i in range(1,N+1):
 
     chr = 'chr'+str(i)
-    filename_hic = '/media/labuser/STORAGE/GraphReg/data/'+cell_line+'/hic/'+cell_line+'_HiCAR_FDR_1_'+chr
+    filename_hic = data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr
     hic_dataframe = pd.read_csv(filename_hic, header=None, delimiter='\t')
-    hic_dataframe.columns = ["start_i", "start_j", "chr", "qval", "count"]
+    hic_dataframe.columns = ["chr", "start_i", "start_j", "qval", "count"]
     print(hic_dataframe)
 
-    filename_seqs = '/media/labuser/STORAGE/GraphReg/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr+'.bed'
+    filename_seqs = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr+'.bed'
     seq_dataframe = pd.read_csv(filename_seqs, header=None, delimiter='\t')
     seq_dataframe.columns = ["chr", "start", "end"]
     print(seq_dataframe)
@@ -81,7 +98,6 @@ for i in range(1,22+1):
                 idx_col = np.zeros(len(idx), dtype=int)
                 for j in range(len(idx)):
                     idx_col[j] = nodes_dict_all[idx[j]]
-                #cut_values = cut['D'].values / cut['mu'].values
                 hic[i,idx_col] = cut['count'].values
                 print(cut['count'].values)
 
@@ -90,8 +106,8 @@ for i in range(1,22+1):
     #row_max = np.max(hic_sym, axis=1)
     #print('hic_max: ', row_max)
     #hic_sym = hic_sym + np.diag(row_max)
-    hic_sym = hic_sym.astype(np.float16)
+    hic_sym = hic_sym.astype(np.float32)
     print(hic_sym[2000:2020,2000:2020])
     sparse_matrix = scipy.sparse.csr_matrix(hic_sym)
-    scipy.sparse.save_npz('/media/labuser/STORAGE/GraphReg/data/'+cell_line+'/hic/HiCAR_matrix_FDR_1_'+chr+'.npz', sparse_matrix)
+    scipy.sparse.save_npz(data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+assay_type+'_matrix_FDR_'+fdr+'_'+chr+'.npz', sparse_matrix)
 

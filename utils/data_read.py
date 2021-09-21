@@ -31,18 +31,12 @@ import intervaltree
 #import basenji.basenji_data.ModelSeq as ModelSeq
 ModelSeq = collections.namedtuple('ModelSeq', ['chr', 'start', 'end', 'label'])
 
-
-"""
-basenji_data_read.py
-
-Read sequence values from coverage files.
-"""
-
 ################################################################################
 # main
 ################################################################################
 def main():
-  usage = 'usage: %prog [options] <genome_cov_file> <seqs_bed_file> <seqs_cov_file>'
+  #usage = 'usage: %prog [options] <genome_cov_file> <seqs_bed_file> <seqs_cov_file>'
+  usage = 'usage: %prog [options]'
   parser = OptionParser(usage)
   parser.add_option('-b', dest='blacklist_bed',
       help='Set blacklist nucleotides to a baseline value.')
@@ -66,29 +60,26 @@ def main():
       help='Average pooling width [Default: %default]')
   (options, args) = parser.parse_args()
 
-  # if len(args) != 3:
-  #   parser.error('')
-  # else:
-  #   genome_cov_file = args[0]
-  #   seqs_bed_file = args[1]
-  #   seqs_cov_file = args[2]
+  ################################################################
+  # Inputs
 
   organism = 'human'
   cell_line = 'hESC'
   res = '5kb'
   genome='hg38'
+  data_path = '/media/labuser/STORAGE/GraphReg'
 
   if organism == 'human':
-      chr_list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]
+      chr_list = np.arange(1,1+22)
   else:
-      chr_list = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+      chr_list = np.arange(1,1+19)
   
   for i in chr_list:
     print(i)
     chr_temp = 'chr'+str(i)
-    genome_cov_file = '/media/labuser/STORAGE/GraphReg/data/'+cell_line+'/bigwig/H3K4me3_H1_hg38.bigWig'
-    seqs_bed_file = '/media/labuser/STORAGE/GraphReg/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr_temp+'.bed'
-    seqs_cov_file = '/media/labuser/STORAGE/GraphReg/data/'+cell_line+'/seqs_cov/H3K4me3_cov_encode_'+chr_temp+'.h5'
+    genome_cov_file = data_path+'/data/'+cell_line+'/bigwig/H3K27ac_H1_hg38_rep1.bw'
+    seqs_bed_file = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr_temp+'.bed'
+    seqs_cov_file = data_path+'/data/'+cell_line+'/seqs_cov/H3K27ac_cov_danwei_'+chr_temp+'.h5'
 
     assert(options.crop_bp >= 0)
 
@@ -109,7 +100,7 @@ def main():
     assert(target_length > 0)
 
     # initialize sequences coverage file
-    seqs_cov_dir = '/media/labuser/STORAGE/GraphReg/data/'+cell_line+'/seqs_cov'
+    seqs_cov_dir = data_path+'/data/'+cell_line+'/seqs_cov'
     if not os.path.isdir(seqs_cov_dir):
       os.mkdir(seqs_cov_dir)
     seqs_cov_open = h5py.File(seqs_cov_file, 'w')
