@@ -74,9 +74,9 @@ def main():
   res = '5kb'                 # 5kb/10kb
   cell_line = 'hESC'          # K562/GM12878/hESC/mESC
   genome='hg38'               # hg19/hg38/mm10
-  model = 'epi'               # seq/epi
-  assay_type = 'HiCAR'        # HiC/HiChIP/MicroC/HiCAR
-  qval = 0.001                    # 0.1/0.01/0.001
+  model = 'seq'               # seq/epi
+  assay_type = 'MicroC'        # HiC/HiChIP/MicroC/HiCAR
+  qval = 0.1                    # 0.1/0.01/0.001
   data_path = '/media/labuser/STORAGE/GraphReg'
 
   if qval == 0.1:

@@ -3,6 +3,18 @@ import pandas as pd
 import time
 import os
 
+resolution = '5kb'     # 5kb/10kb
+organism = 'human'     # human/mouse
+genome = 'hg38'        # hg38/hg19/mm10
+thr = 0                # only keep the tss bins whose distance from bin borders are more than "thr" 
+                       # (only applicable when want to consider the bins with 1 tss, otherwise thr = 0)
+data_path = '/media/labuser/STORAGE/GraphReg'
+
+if organism == 'human':
+    N = 22
+else:
+    N = 19
+
 n_tss_bins_all = 0
 n_tss_bins_all_1 = 0
 n_tss_bins_all_2 = 0
@@ -11,46 +23,33 @@ n_tss_bins_all_4 = 0
 n_tss_bins_all_5 = 0
 n_tss_bins_all_6 = 0
 
-resolution = '5kb'     # 5kb/10kb
-organism = 'human'     # human/mouse
-genome = 'hg38'        # hg38/hg19
-thr = 0                # only keep the tss bins whose distance from bin borders are more than "thr" 
-                       # (only applicable when want to consider the bins with 1 tss, otherwise thr = 0)
-
-if organism == 'human':
-    N = 22
-else:
-    N = 19
-
 for ii in range(1,N+1):
     chr = 'chr'+str(ii)
 
     if organism == 'human' and genome == 'hg19':
-       filename_tss = '/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/hg19_gencodev19_tss.bed'
+       filename_tss = data_path+'/data/tss/'+organism+'/'+genome+'/hg19_gencodev19_tss.bed'
     elif organism == 'human' and genome == 'hg38':
-       filename_tss = '/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/gencode.v38.annotation.gtf.tss.bed'
+       filename_tss = data_path+'/data/tss/'+organism+'/'+genome+'/gencode.v38.annotation.gtf.tss.bed'
     elif organism == 'mouse':
-        filename_tss = '/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/mm10_gencode_vM9_tss.bed'
+        filename_tss = data_path+'/data/tss/'+organism+'/'+genome+'/mm10_gencode_vM9_tss.bed'
 
     tss_dataframe = pd.read_csv(filename_tss, header=None, delimiter='\t')
     tss_dataframe.columns = ["chr", "tss_1", "tss_2", "ens", "gene", "strand", "type"]
-    #print(tss_dataframe)
+
     protein_coding_tss = tss_dataframe.loc[(tss_dataframe['type'] == 'protein_coding') & (tss_dataframe['chr'] == chr)]
     protein_coding_tss = protein_coding_tss.reset_index(drop=True)
     print(protein_coding_tss)
     n_tss = len(protein_coding_tss)
-
     
-    filename_seqs = '/media/labuser/STORAGE/GraphReg/data/csv/seqs_bed/'+organism+'/'+genome+'/'+resolution+'/sequences_'+chr+'.bed'
+    filename_seqs = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/'+resolution+'/sequences_'+chr+'.bed'
     seq_dataframe = pd.read_csv(filename_seqs, header=None, delimiter='\t')
     seq_dataframe.columns = ["chr", "start", "end"]
     print(seq_dataframe)
     bin_start = seq_dataframe['start'].values
     bin_end = seq_dataframe['end'].values
     n_bin = len(bin_start)
-    #print('bin_start: ', bin_start[:700])
     print('number of bins: ', n_bin)
-    np.save('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/bin_start_'+chr, bin_start)
+    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/bin_start_'+chr, bin_start)
     
     
     ### write tss
@@ -79,7 +78,7 @@ for ii in range(1,N+1):
     n_tss_bins_all_6 = n_tss_bins_all_6 + np.sum(tss==6)
     
     print('number of tss: ', np.sum(tss).astype(np.int64))
-    np.save('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/tss_bins_'+chr, tss)
+    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_bins_'+chr, tss)
     
 
     ### find gene names and their tss positions in the bins 
@@ -99,13 +98,11 @@ for ii in range(1,N+1):
               pos_tss[i] = pos_tss1
               gene_name[i] = gene_names
     
-    #pos_tss = np.array(pos_tss)
-    #gene_name = np.array(gene_name)
     print(len(pos_tss), pos_tss[0:800])
     print(len(gene_name), gene_name[:800])
     
-    np.save('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/tss_pos_'+chr, pos_tss)
-    np.save('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/tss_gene_'+chr, gene_name)
+    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_'+chr, pos_tss)
+    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_'+chr, gene_name)
 
 print('number of all tss bins:', n_tss_bins_all)
 print('number of bins with 1 tss:', n_tss_bins_all_1)
