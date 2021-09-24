@@ -29,7 +29,6 @@ import numpy as np
 import qnorm
 import pyBigWig
 import intervaltree
-#import basenji.basenji_data.ModelSeq as ModelSeq
 ModelSeq = collections.namedtuple('ModelSeq', ['chr', 'start', 'end', 'label'])
 
 ################################################################################
