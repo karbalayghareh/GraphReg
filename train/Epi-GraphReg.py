@@ -311,7 +311,7 @@ def main():
             best_loss = valid_loss
             model_gat.save(model_name_gat)
             print('epoch: ', epoch, ', valid loss: ', valid_loss, ', valid rho: ', valid_rho, ', time passed: ', (time.time() - t0), ' sec')
-            test_loss,  test_rho = calculate_loss(model_gat, test_chr_list, cell_lines, batch_size)
+            test_loss,  test_rho = calculate_loss(model_gat, test_chr_list, cell_lines, batch_size, assay_type, fdr)
             print('epoch: ', epoch, ', test loss: ', test_loss, ', test rho: ', test_rho, ', time passed: ', (time.time() - t0), ' sec')
 
         else:
