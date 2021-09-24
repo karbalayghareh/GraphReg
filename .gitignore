@@ -1,1 +1,8 @@
+# Ignore these folders
+models/
+.vscode/
+__pycache__/
+
+# Ignore these files
+*.sh
 
