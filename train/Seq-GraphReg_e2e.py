@@ -27,14 +27,40 @@ def main():
         default='1,11', type='str')
     parser.add_option('-t', dest='test_chr',
         default='2,12', type='str')
+    parser.add_option('-p', dest='data_path',
+        default='/media/labuser/STORAGE/GraphReg', type='str')
+    parser.add_option('-a', dest='assay_type',
+        default='HiChIP', type='str')
+    parser.add_option('-q', dest='qval',
+        default=0.1, type='float')
+    parser.add_option('-n', dest='n_gat_layers',
+        default=3, type='int')
 
     (options, args) = parser.parse_args()
     valid_chr_str = options.valid_chr.split(',')
     valid_chr = [int(valid_chr_str[i]) for i in range(len(valid_chr_str))]
     test_chr_str = options.test_chr.split(',')
     test_chr = [int(test_chr_str[i]) for i in range(len(test_chr_str))]
+
+    data_path = options.data_path
+    assay_type = options.assay_type
+    qval = options.qval
+
+    if qval == 0.1:
+        fdr = '1'
+    elif qval == 0.01:
+        fdr = '01'
+    elif qval == 0.001:
+        fdr = '001'
+
+    print('organism:', options.organism)
+    print('cell type:', options.cell_line)
     print('valid chrs: ', valid_chr)
     print('test chrs: ', test_chr)
+    print('data path: ', options.data_path)
+    print('3D assay type: ', options.assay_type)
+    print('HiCDCPlus FDR: ', options.qval)
+    print('number of GAT layers: ', options.n_gat_layers)
 
     def poisson_loss(y_true, mu_pred):
         nll = tf.reduce_mean(tf.math.lgamma(y_true + 1) + mu_pred - y_true * tf.math.log(mu_pred))
@@ -142,7 +168,7 @@ def main():
         for num, cell_line in enumerate(cell_lines):
             for i in chr_list:
                 print(' chr: ', i)
-                file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_seq_'+cell_line+'_chr'+str(i)+'.tfr'
+                file_name = data_path+'/data/tfrecords/tfr_seq_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
                 iterator = dataset_iterator(file_name, batch_size)
                 while True:
                     data_exist, seq, Y, Y_h3k4me3, Y_h3k27ac, Y_dnase, adj, idx, tss_idx = read_tf_record_1shot(iterator)
@@ -203,6 +229,7 @@ def main():
     re_load = False
 
     # Model definition
+
     if re_load:
         model_name = 'model_name.h5'
         model = tf.keras.models.load_model(model_name, custom_objects={'GraphAttention': GraphAttention})
@@ -265,16 +292,12 @@ def main():
         x = layers.BatchNormalization()(x)
         x = layers.MaxPool1D(5)(x)
 
-        x = Dropout(dropout_rate)(x)
-        x = layers.Conv1D(128, 3, activation='relu', padding='same', kernel_regularizer=l2(l2_reg), bias_regularizer=l2(l2_reg))(x)
-        x = layers.BatchNormalization()(x)
-
         x = layers.Reshape([20,128,1])(x)
         x = K.permute_dimensions(x, (3, 0, 1, 2))
         x = layers.Reshape([1200,128])(x)
 
         att=[]
-        for i in range(3):
+        for i in range(options.n_gat_layers):
             x, att_ = GraphAttention(F_,
                         attn_heads=n_attn_heads,
                         attn_heads_reduction='concat',
@@ -304,10 +327,9 @@ def main():
 
     cell_line = options.cell_line
     cell_lines = [cell_line]
-    print('cell type:', cell_line)
-    model_name_gat = '../models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_valid_chr_'+options.valid_chr+'.h5'
+    model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_'+options.assay_type+'_FDR_'+fdr+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
 
-    if cell_line == 'mESC':
+    if options.organism == 'mouse':
         train_chr_list = [c for c in range(1,1+19)]
         valid_chr_list = valid_chr
         test_chr_list = test_chr
@@ -322,8 +344,8 @@ def main():
         for j in range(len(vt)):
             train_chr_list.remove(vt[j])
 
-    best_loss = 10**20
-    max_early_stopping = 10
+    best_loss = 1e20
+    max_early_stopping = 5
     n_epochs = 100
     opt = tf.keras.optimizers.Adam(learning_rate=.0002, decay=1e-6)
     batch_size = 1
@@ -342,7 +364,7 @@ def main():
         for num, cell_line in enumerate(cell_lines):
             for i in train_chr_list:
                 print('train chr :', i)
-                file_name_train = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_seq_'+cell_line+'_chr'+str(i)+'.tfr'
+                file_name_train = data_path+'/data/tfrecords/tfr_seq_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
                 iterator_train = dataset_iterator(file_name_train, batch_size)
                 while True:
                     data_exist, seq, Y, Y_h3k4me3, Y_h3k27ac, Y_dnase,  adj, idx, tss_idx = read_tf_record_1shot(iterator_train)

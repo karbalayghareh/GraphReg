@@ -5,7 +5,6 @@ from tensorflow.keras.layers import Input, Dropout
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import l2
-from graph_attention_layer_batch_modified import GraphAttention
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
@@ -27,14 +26,37 @@ def main():
         default='1,11', type='str')
     parser.add_option('-t', dest='test_chr',
         default='2,12', type='str')
+    parser.add_option('-p', dest='data_path',
+        default='/media/labuser/STORAGE/GraphReg', type='str')
+    parser.add_option('-a', dest='assay_type',
+        default='HiChIP', type='str')
+    parser.add_option('-q', dest='qval',
+        default=0.1, type='float')
 
     (options, args) = parser.parse_args()
     valid_chr_str = options.valid_chr.split(',')
     valid_chr = [int(valid_chr_str[i]) for i in range(len(valid_chr_str))]
     test_chr_str = options.test_chr.split(',')
     test_chr = [int(test_chr_str[i]) for i in range(len(test_chr_str))]
+
+    data_path = options.data_path
+    assay_type = options.assay_type
+    qval = options.qval
+
+    if qval == 0.1:
+        fdr = '1'
+    elif qval == 0.01:
+        fdr = '01'
+    elif qval == 0.001:
+        fdr = '001'
+
+    print('organism:', options.organism)
+    print('cell type:', options.cell_line)
     print('valid chrs: ', valid_chr)
     print('test chrs: ', test_chr)
+    print('data path: ', options.data_path)
+    print('3D assay type: ', options.assay_type)
+    print('HiCDCPlus FDR: ', options.qval)
 
     def poisson_loss(y_true, mu_pred):
         nll = tf.reduce_mean(tf.math.lgamma(y_true + 1) + mu_pred - y_true * tf.math.log(mu_pred))
@@ -129,7 +151,6 @@ def main():
             idx = 0
         return data_exist, seq, Y, Y_h3k4me3, Y_h3k27ac, Y_dnase, adj, idx, tss_idx
 
-
     def calculate_loss(model_cnn, chr_list, cell_lines, batch_size, alpha):
         loss_cage_all = np.array([])
         loss_h3k4me3_all = np.array([])
@@ -144,7 +165,7 @@ def main():
         for num, cell_line in enumerate(cell_lines):
             for i in chr_list:
                 print(' chr :', i)
-                file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_seq_'+cell_line+'_chr'+str(i)+'.tfr'
+                file_name = data_path+'/data/tfrecords/tfr_seq_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
                 iterator = dataset_iterator(file_name, batch_size)
                 while True:
                     data_exist, seq, Y, Y_h3k4me3, Y_h3k27ac, Y_dnase, adj, idx, tss_idx = read_tf_record_1shot(iterator)
@@ -289,10 +310,9 @@ def main():
 
     cell_line = options.cell_line
     cell_lines = [cell_line]
-    print('cell type:', cell_line)
-    model_name_cnn = '../models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_valid_chr_'+options.valid_chr+'.h5'
+    model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_'+options.assay_type+'_FDR_'+fdr+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
 
-    if cell_line == 'mESC':
+    if options.organism == 'mouse':
         train_chr_list = [c for c in range(1,1+19)]
         valid_chr_list = valid_chr
         test_chr_list = test_chr
@@ -327,7 +347,7 @@ def main():
         for num, cell_line in enumerate(cell_lines):
             for i in train_chr_list:
                 print('train chr :', i)
-                file_name_train = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_seq_'+cell_line+'_chr'+str(i)+'.tfr'
+                file_name_train = data_path+'/data/tfrecords/tfr_seq_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
                 iterator_train = dataset_iterator(file_name_train, batch_size)
                 while True:
                     data_exist, seq, Y, Y_h3k4me3, Y_h3k27ac, Y_dnase, adj, idx, tss_idx = read_tf_record_1shot(iterator_train)

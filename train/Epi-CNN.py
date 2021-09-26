@@ -223,7 +223,6 @@ def main():
 
     cell_line = options.cell_line
     cell_lines = [cell_line]
-    print('cell type:', cell_line)
     model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
     
     if options.organism == 'mouse':
