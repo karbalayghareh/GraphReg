@@ -27,6 +27,30 @@ import mpl_scatter_density # adds projection='scatter_density'
 from matplotlib.colors import LinearSegmentedColormap
 from statannot import add_stat_annotation
 
+##### Input 
+batch_size = 1
+organism = 'human'            # human/mouse
+genome='hg19'                 # hg19/hg38/mm10
+cell_line = 'K562'            # K562/GM12878/mESC/hESC
+write_bw = False              # write the predicted CAGE to bigwig files
+prediction = True
+logfold = False
+load_np = False
+plot_violin = False
+plot_box = False
+plot_scatter = False
+check_effect_of_3D_data_and_fdr = False
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+qval = .1                                       # 0.1, 0.01, 0.001
+assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
+
+if qval == 0.1:
+    fdr = '1'
+elif qval == 0.01:
+    fdr = '01'
+elif qval == 0.001:
+    fdr = '001'
+
 
 def log2(x):
   numerator = tf.math.log(x)
@@ -100,6 +124,8 @@ def read_tf_record_1shot(iterator):
         X_epi = next_datum['X_epi']
         batch_size = tf.shape(X_epi)[0]
         X_epi = tf.reshape(X_epi, [batch_size, 3*T*b, F])
+        X_avg = tf.reshape(X_epi, [3*T, b, F])
+        X_avg = tf.reduce_mean(X_avg, axis=1)
         adj = next_datum['adj']
         adj = tf.reshape(adj, [batch_size, 3*T, 3*T])
 
@@ -152,13 +178,14 @@ def read_tf_record_1shot(iterator):
 
     else:
         X_epi = 0
+        X_avg = 0
         Y = 0
         adj = 0
         tss_idx = 0
         idx = 0
         pos = 0
         last_batch = 10
-    return data_exist, X_epi, Y, adj, idx, tss_idx, pos, last_batch
+    return data_exist, X_epi, X_avg, Y, adj, idx, tss_idx, pos, last_batch
 
 def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_line, organism, genome, batch_size, write_bw):
     loss_gat_all = np.array([])
@@ -175,6 +202,11 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
     gene_tss = np.array([])
     gene_chr = np.array([])
     n_contacts = np.array([])
+    n_tss_in_bin = np.array([])
+
+    x_h3k4me3 = np.array([])
+    x_h3k27ac = np.array([])
+    x_dnase = np.array([])
 
     y_bw = np.array([])
     y_pred_gat_bw = np.array([])
@@ -195,11 +227,11 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         ("chr7", 159138663), ("chr8", 146364022), ("chr9", 141213431), ("chr10", 135534747), ("chr11", 135006516), ("chr12", 133851895),
                         ("chr13", 115169878), ("chr14", 107349540), ("chr15", 102531392), ("chr16", 90354753), ("chr17", 81195210), ("chr18", 78077248),
                         ("chr19", 59128983), ("chr20", 63025520), ("chr21", 48129895), ("chr22", 51304566)]
-        bw_y_true = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/CAGE_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_true = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/CAGE_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_true.addHeader(chr_length)
-        bw_y_pred_gat = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/Epi-GraphReg_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_pred_gat = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/Epi-GraphReg_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_pred_gat.addHeader(chr_length)
-        bw_y_pred_cnn = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/Epi-CNN_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_pred_cnn = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/Epi-CNN_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_pred_cnn.addHeader(chr_length)
 
     if write_bw == True and organism == 'human' and genome == 'hg38':
@@ -208,11 +240,11 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         ("chr7", 159345973), ("chr8", 145138636), ("chr9", 138394717), ("chr10", 133797422), ("chr11", 135086622), ("chr12", 133275309),
                         ("chr13", 114364328), ("chr14", 107043718), ("chr15", 101991189), ("chr16", 90338345), ("chr17", 83257441), ("chr18", 80373285),
                         ("chr19", 58617616), ("chr20", 64444167), ("chr21", 46709983), ("chr22", 50818468)]
-        bw_y_true = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/CAGE_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_true = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/CAGE_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_true.addHeader(chr_length)
-        bw_y_pred_gat = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/Epi-GraphReg_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_pred_gat = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/Epi-GraphReg_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_pred_gat.addHeader(chr_length)
-        bw_y_pred_cnn = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/Epi-CNN_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_pred_cnn = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/Epi-CNN_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_pred_cnn.addHeader(chr_length)
 
     if write_bw == True and organism == 'mouse':
@@ -221,31 +253,36 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                                         ("chr7", 145435000), ("chr8", 129395000), ("chr9", 124590000), ("chr10", 130685000), ("chr11", 122075000), ("chr12", 120120000),
                                         ("chr13", 120415000), ("chr14", 124895000), ("chr15", 104035000), ("chr16", 98200000), ("chr17", 94980000), ("chr18", 90695000),
                                         ("chr19", 61425000)]
-        bw_y_true = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/CAGE_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_true = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/CAGE_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_true.addHeader(chr_length)
-        bw_y_pred_gat = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/Epi-GraphReg_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_pred_gat = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/Epi-GraphReg_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_pred_gat.addHeader(chr_length)
-        bw_y_pred_cnn = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/cage_prediction/Epi-models/Epi-CNN_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
+        bw_y_pred_cnn = pyBigWig.open(data_path+'/results/bigwig/cage_prediction/Epi-models/Epi-CNN_CAGE_pred_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.bw', "w")
         bw_y_pred_cnn.addHeader(chr_length)
 
     for i in chr_list:
         #K = 0
         print(' chr :', i)
-        file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_'+cell_line+'_chr'+str(i)+'.tfr'
+        file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
-        tss_pos = np.load('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
-        gene_names_all = np.load('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/tss_gene_chr'+str(i)+'.npy', allow_pickle=True)
+        tss_pos = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
+        gene_names_all = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_chr'+str(i)+'.npy', allow_pickle=True)
+        n_tss = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_bins_chr'+str(i)+'.npy', allow_pickle=True)
+
         tss_pos = tss_pos[tss_pos>0]
-        print('tss_pos: ', len(tss_pos))
+        print('tss_pos: ', len(tss_pos), tss_pos[0:10])
         gene_names_all = gene_names_all[gene_names_all != ""]
         print('gene_names_all: ', len(gene_names_all), gene_names_all[0:10])
+        n_tss = n_tss[n_tss>=1]
+        print('n_tss: ', len(n_tss), n_tss[0:10])
+
         pos_bw = np.array([])
         y_bw_ = np.array([])
         y_pred_gat_bw_ = np.array([])
         y_pred_cnn_bw_ = np.array([])
         print(tss_pos.shape[0], tss_pos[0:100])
         while True:
-            data_exist, X_epi, Y, adj, idx, tss_idx, pos, last_batch = read_tf_record_1shot(iterator)
+            data_exist, X_epi, X_avg, Y, adj, idx, tss_idx, pos, last_batch = read_tf_record_1shot(iterator)
 
             ### Creating BigWig files for true and predicted CAGE tracks ###
             if write_bw == True:
@@ -314,6 +351,10 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         y_hat_gat_ = np.repeat(Y_hat_gat.numpy().ravel(), 50)
                         y_hat_cnn_ = np.repeat(Y_hat_cnn.numpy().ravel(), 50)
 
+                        x_h3k4me3_ = np.repeat(X_avg.numpy()[:,0], 50)
+                        x_h3k27ac_ = np.repeat(X_avg.numpy()[:,1], 50)
+                        x_dnase_ = np.repeat(X_avg.numpy()[:,2], 50)
+
                         y_gene = np.append(y_gene, y_true_[idx_tss])                    # + y_true_[idx_tss-50] + y_true_[idx_tss+50])
                         y_hat_gene_gat = np.append(y_hat_gene_gat, y_hat_gat_[idx_tss]) # + y_hat_gat_[idx_tss-50] + y_hat_gat_[idx_tss+50])
                         y_hat_gene_cnn = np.append(y_hat_gene_cnn, y_hat_cnn_[idx_tss]) # + y_hat_cnn_[idx_tss-50] + y_hat_cnn_[idx_tss+50])
@@ -321,7 +362,12 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         gene_tss = np.append(gene_tss, tss_pos_1[j])
                         gene_chr = np.append(gene_chr, 'chr'+str(i))
                         gene_names = np.append(gene_names, gene_names_all[idx_gene]) 
+                        n_tss_in_bin = np.append(n_tss_in_bin, n_tss[idx_gene])
                         n_contacts = np.append(n_contacts, num_contacts[idx_tss])
+
+                        x_h3k4me3 = np.append(x_h3k4me3, x_h3k4me3_[idx_tss])
+                        x_h3k27ac = np.append(x_h3k27ac, x_h3k27ac_[idx_tss])
+                        x_dnase = np.append(x_dnase, x_dnase_[idx_tss])
 
             else:
                 #print('no data')
@@ -363,21 +409,11 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
         bw_y_pred_cnn.close()
 
     print('len of test/valid Y: ', len(y_gene))
-    return y_gene, y_hat_gene_gat, y_hat_gene_cnn, chr_pos, gene_pos, gene_names, gene_tss, gene_chr, n_contacts
+    return y_gene, y_hat_gene_gat, y_hat_gene_cnn, chr_pos, gene_pos, gene_names, gene_tss, gene_chr, n_contacts, n_tss_in_bin, x_h3k4me3, x_h3k27ac, x_dnase 
 
 
 ############################################################# load model #############################################################
-batch_size = 1
-organism = 'human'            # human/mouse
-genome='hg38'                 # hg19/hg38
-cell_line = 'hESC'            # K562/GM12878/mESC/hESC
-write_bw = False              # write the predicted CAGE to bigwig files
-prediction = True
-logfold = False
-load_np = False
-plot_violin = False
-plot_box = True
-plot_scatter = True
+
 
 def set_axis_style(ax, labels, positions_tick):
         ax.get_xaxis().set_tick_params(direction='out')
@@ -397,7 +433,8 @@ if prediction == True:
     valid_loss_cnn = np.zeros([10,4])
     valid_rho_cnn = np.zeros([10,4])
     valid_sp_cnn = np.zeros([10,4])
-    df_all_predictions = pd.DataFrame(columns=['chr', 'gene', 'tss', 'n_contact', 'true_cage', 'pred_cage_epi_graphreg', 'pred_cage_epi_cnn', 'nll_epi_graphreg', 'nll_epi_cnn', 'delta_nll'])
+    n_gene = np.zeros([10,4])
+    df_all_predictions = pd.DataFrame(columns=['chr', 'genes', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'average_dnase', 'average_h3k27ac', 'average_h3k4me3', 'true_cage', 'pred_cage_epi_graphreg', 'pred_cage_epi_cnn', 'nll_epi_graphreg', 'nll_epi_cnn', 'delta_nll'])
 
     for i in range(1,1+10):
         print('i: ', i)
@@ -412,51 +449,61 @@ if prediction == True:
             it2 = i+11
         valid_chr_list = [i, iv2]
         test_chr_list = [i+1, it2]
-        chr_list = test_chr_list
+        chr_list = test_chr_list.copy()
         chr_list.sort()
 
+        test_chr_str = [str(i) for i in test_chr_list]
+        test_chr_str = ','.join(test_chr_str)
+        valid_chr_str = [str(i) for i in valid_chr_list]
+        valid_chr_str = ','.join(valid_chr_str)
+
         if load_np == True:
-            y_gene = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy')
-            y_hat_gene_gat = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
-            y_hat_gene_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
-            n_contacts = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/n_contacts_'+cell_line+'_'+str(i)+'.npy')
-            gene_names = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_names_'+cell_line+'_'+str(i)+'.npy')
-            gene_tss = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_tss_'+cell_line+'_'+str(i)+'.npy')
-            gene_chr = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_chr_'+cell_line+'_'+str(i)+'.npy')
+            y_gene = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy')
+            y_hat_gene_gat = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
+            y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
+            n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line+'_'+str(i)+'.npy')
+            gene_names = np.load(data_path+'/results/numpy/cage_prediction/gene_names_'+cell_line+'_'+str(i)+'.npy')
+            gene_tss = np.load(data_path+'/results/numpy/cage_prediction/gene_tss_'+cell_line+'_'+str(i)+'.npy')
+            gene_chr = np.load(data_path+'/results/numpy/cage_prediction/gene_chr_'+cell_line+'_'+str(i)+'.npy')
         else:
-            model_name_gat = '../models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_valid_chr_'+str(i)+','+str(iv2)+'.h5'
+            model_name_gat = data_path+'/models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
             model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
             model_gat.trainable = False
             model_gat._name = 'Epi-GraphReg'
             #model_gat.summary()
 
-            model_name = '../models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+str(i)+','+str(iv2)+'.h5'
+            model_name = data_path+'/models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
             model_cnn = tf.keras.models.load_model(model_name)
             model_cnn.trainable = False
             model_cnn._name = 'Epi-CNN'
             #model_cnn.summary()
 
-            y_gene, y_hat_gene_gat, y_hat_gene_cnn, _, _, gene_names, gene_tss, gene_chr, n_contacts = calculate_loss(model_gat, model_cnn, 
+            y_gene, y_hat_gene_gat, y_hat_gene_cnn, _, _, gene_names, gene_tss, gene_chr, n_contacts, n_tss_in_bin, x_h3k4me3, x_h3k27ac, x_dnase = calculate_loss(model_gat, model_cnn, 
                     chr_list, valid_chr_list, test_chr_list, cell_line, organism, genome, batch_size, write_bw)
-            np.save('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy', y_gene)
-            np.save('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line+'_'+str(i)+'.npy', y_hat_gene_gat)
-            np.save('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line+'_'+str(i)+'.npy', y_hat_gene_cnn)
-            np.save('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/n_contacts_'+cell_line+'_'+str(i)+'.npy', n_contacts)
-            np.save('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_names_'+cell_line+'_'+str(i)+'.npy', gene_names)
-            np.save('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_tss_'+cell_line+'_'+str(i)+'.npy', gene_tss)
-            np.save('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_chr_'+cell_line+'_'+str(i)+'.npy', gene_chr)
+            np.save(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy', y_gene)
+            np.save(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line+'_'+str(i)+'.npy', y_hat_gene_gat)
+            np.save(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line+'_'+str(i)+'.npy', y_hat_gene_cnn)
+            np.save(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line+'_'+str(i)+'.npy', n_contacts)
+            np.save(data_path+'/results/numpy/cage_prediction/gene_names_'+cell_line+'_'+str(i)+'.npy', gene_names)
+            np.save(data_path+'/results/numpy/cage_prediction/gene_tss_'+cell_line+'_'+str(i)+'.npy', gene_tss)
+            np.save(data_path+'/results/numpy/cage_prediction/gene_chr_'+cell_line+'_'+str(i)+'.npy', gene_chr)
 
-        df_tmp = pd.DataFrame(columns=['chr', 'gene', 'tss', 'n_contact', 'true_cage', 'pred_cage_epi_graphreg', 'pred_cage_epi_cnn', 'nll_epi_graphreg', 'nll_epi_cnn', 'delta_nll'])
+        df_tmp = pd.DataFrame(columns=['chr', 'genes', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'average_dnase', 'average_h3k27ac', 'average_h3k4me3', 'true_cage', 'pred_cage_epi_graphreg', 'pred_cage_epi_cnn', 'nll_epi_graphreg', 'nll_epi_cnn', 'delta_nll'])
         df_tmp['chr'] = gene_chr
-        df_tmp['gene'] = gene_names
+        df_tmp['genes'] = gene_names
+        df_tmp['n_tss'] = n_tss_in_bin.astype(np.int64)
         df_tmp['tss'] = gene_tss.astype(np.int64)
+        df_tmp['tss_distance_from_center'] = np.abs(np.mod(gene_tss, 5000) - 2500).astype(np.int64)
         df_tmp['n_contact'] = n_contacts.astype(np.int64)
+        df_tmp['average_dnase'] = x_dnase
+        df_tmp['average_h3k27ac'] = x_h3k27ac
+        df_tmp['average_h3k4me3'] = x_h3k4me3
         df_tmp['true_cage'] = y_gene
         df_tmp['pred_cage_epi_graphreg'] = y_hat_gene_gat
         df_tmp['pred_cage_epi_cnn'] = y_hat_gene_cnn
         df_tmp['nll_epi_graphreg'] = poisson_loss_individual(y_gene, y_hat_gene_gat).numpy()
         df_tmp['nll_epi_cnn'] = poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy()
-        df_tmp['delta_nll'] = poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy() - poisson_loss_individual(y_gene, y_hat_gene_gat).numpy()
+        df_tmp['delta_nll'] = poisson_loss_individual(y_gene, y_hat_gene_gat).numpy() - poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy()
 
         df_all_predictions = df_all_predictions.append(df_tmp).reset_index(drop=True)
 
@@ -468,7 +515,7 @@ if prediction == True:
                 min_expression = 5 
                 min_contact = 0
             elif j==2:
-                min_expression = 5 
+                min_expression = 5
                 min_contact = 1
             else:
                 min_expression = 5 
@@ -485,6 +532,8 @@ if prediction == True:
             valid_loss_cnn[i-1,j] = poisson_loss(y_gene_idx, y_hat_gene_cnn_idx).numpy()
             valid_rho_cnn[i-1,j] = np.corrcoef(np.log2(y_gene_idx+1),np.log2(y_hat_gene_cnn_idx+1))[0,1]
             valid_sp_cnn[i-1,j] = spearmanr(np.log2(y_gene_idx+1), np.log2(y_hat_gene_cnn_idx+1))[0]
+
+            n_gene[i-1,j] = len(y_gene_idx)
 
             print('NLL GAT: ', valid_loss_gat, ' rho: ', valid_rho_gat, ' sp: ', valid_sp_gat)
             print('NLL CNN: ', valid_loss_cnn, ' rho: ', valid_rho_cnn, ' sp: ', valid_sp_cnn)
@@ -514,14 +563,48 @@ if prediction == True:
     print('Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
 
     # write the prediction to csv file
-    df_all_predictions.to_csv('/media/labuser/STORAGE/GraphReg/results/csv/cage_prediction/'+cell_line+'_all_predictions_epi_models.csv', sep="\t")
-    df_sub = df_all_predictions[(df_all_predictions['n_contact']>=10) & (df_all_predictions['true_cage']>=100) & (df_all_predictions['nll_epi_graphreg']<=100) & (df_all_predictions['delta_nll']>=100)].reset_index(drop=True)
-    df_sub = df_sub.sort_values(by=['delta_nll'], ascending=False).reset_index(drop=True)
-    df_sub.to_csv('/media/labuser/STORAGE/GraphReg/results/csv/cage_prediction/'+cell_line+'_sub_predictions_epi_models.csv', sep="\t")
+    df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_epi_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
-    df_candidate_genes = df_all_predictions[df_all_predictions['gene'].isin(['MYC', 'OTX2', 'TBX3', 'TP53', 'NANOG', 'SOX2'])].reset_index(drop=True)
-    df_candidate_genes.to_csv('/media/labuser/STORAGE/GraphReg/results/csv/cage_prediction/'+cell_line+'_candidate_genes.csv', sep="\t")
-    df_candidate_genes
+
+    ##### write R and NLL for different 3D graphs and FDRs #####
+    if check_effect_of_3D_data_and_fdr:
+        df = pd.DataFrame(columns=['cell', 'Method', 'Set', 'valid_chr', 'test_chr', 'n_gene_test', '3D_data', 'FDR', 'R','NLL'])
+        for i in range(1,1+10):
+            if organism == 'mouse' and i==9:
+                iv2 = i+10
+                it2 = 1
+            elif organism == 'mouse' and i==10:
+                iv2 = 1
+                it2 = 2
+            else:
+                iv2 = i+10
+                it2 = i+11
+            valid_chr_list = [i, iv2]
+            test_chr_list = [i+1, it2]
+            chr_list = test_chr_list.copy()
+            chr_list.sort()
+
+            test_chr_str = [str(i) for i in test_chr_list]
+            test_chr_str = ','.join(test_chr_str)
+            valid_chr_str = [str(i) for i in valid_chr_list]
+            valid_chr_str = ','.join(valid_chr_str)
+
+            df = df.append({'cell': cell_line, 'Method': 'Epi-GraphReg', 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                            'n_gene_test': n_gene[i-1,0], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,0], 'NLL': valid_loss_gat[i-1,0]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Epi-GraphReg', 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                            'n_gene_test': n_gene[i-1,1], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,1], 'NLL': valid_loss_gat[i-1,1]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Epi-GraphReg', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                            'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,2], 'NLL': valid_loss_gat[i-1,2]}, ignore_index=True)
+
+            df = df.append({'cell': cell_line, 'Method': 'Epi-CNN', 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                        'n_gene_test': n_gene[i-1,0], '3D_data': 'NA', 'FDR': 'NA', 'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Epi-CNN', 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                        'n_gene_test': n_gene[i-1,1], '3D_data': 'NA', 'FDR': 'NA', 'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Epi-CNN', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                        'n_gene_test': n_gene[i-1,2], '3D_data': 'NA', 'FDR': 'NA', 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
+
+        df.to_csv(data_path+'/results/csv/cage_prediction/epi_models_R_NLL_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+
 
 
     ##### plot violin plots #####
@@ -627,12 +710,15 @@ if prediction == True:
         #ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
         #ax1.set_title(cell_line_train, fontsize=20)
         b=sns.boxplot(x='Set', y='R', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'B', 'C', 'D'], ax=ax1)
+        
         add_stat_annotation(ax1, data=df, x='Set', y='R', hue='Method',
                         box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
                                     (("B", "Epi-GraphReg"), ("B", "Epi-CNN")),
                                     (("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
                                     (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
                         test='Wilcoxon', text_format='star', loc='inside', verbose=0, order=['A', 'B', 'C', 'D'], fontsize='x-large', comparisons_correction=None)
+        
+
         ax1.yaxis.set_tick_params(labelsize=20)
         ax1.xaxis.set_tick_params(labelsize=20)
         b.set_xlabel("Set",fontsize=20)
@@ -642,12 +728,14 @@ if prediction == True:
         #ax1.set_ylim((.4,.75))
 
         b = sns.boxplot(x='Set', y='NLL', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'B', 'C', 'D'], ax=ax2)
+        
         add_stat_annotation(ax2, data=df, x='Set', y='NLL', hue='Method',
                         box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
                                     (("B", "Epi-GraphReg"), ("B", "Epi-CNN")),
                                     (("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
                                     (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
                         test='Wilcoxon', text_format='star', loc='inside', verbose=2, order=['A', 'B', 'C', 'D'], fontsize='x-large', comparisons_correction=None)
+        
 
         ax2.yaxis.set_tick_params(labelsize=20)
         ax2.xaxis.set_tick_params(labelsize=20)
@@ -661,7 +749,7 @@ if prediction == True:
         fig.suptitle(cell_line, fontsize=25)
         #fig.suptitle(cell_line_train+' to '+cell_line_test, fontsize=25)
         fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Epi-models/boxplot_'+cell_line+'_all.png')
+        plt.savefig('../figs/Epi-models/boxplot_all_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.pdf')
 
 
         ##### plot boxplots (for gene sets C and D) #####
@@ -711,16 +799,16 @@ if prediction == True:
         fig.suptitle(cell_line, fontsize=25)
         #fig.suptitle(cell_line_train+' to '+cell_line_test, fontsize=25)
         fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Epi-models/boxplot_'+cell_line+'_CD.png')
+        plt.savefig('../figs/Epi-models/boxplot_CD_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.pdf')
 
 
     ##### scatter plots #####
     if plot_scatter == True:
         for i in range(1,1+10):
-            y_gene = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy')
-            y_hat_gene_gat = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
-            y_hat_gene_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
-            n_contacts = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/n_contacts_'+cell_line+'_'+str(i)+'.npy')
+            y_gene = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy')
+            y_hat_gene_gat = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
+            y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line+'_'+str(i)+'.npy')
+            n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line+'_'+str(i)+'.npy')
             idx_0 = np.where(n_contacts==0)[0]
             idx_1 = np.where(n_contacts>=1)[0]
             n_contacts_idx_1 = n_contacts[idx_1]
@@ -819,25 +907,30 @@ if logfold == True:
         it2 = i+11
         valid_chr_list = [i, iv2]
         test_chr_list = [i+1, it2]
-        chr_list = test_chr_list
+        chr_list = test_chr_list.copy()
         chr_list.sort()
 
+        test_chr_str = [str(i) for i in test_chr_list]
+        test_chr_str = ','.join(test_chr_str)
+        valid_chr_str = [str(i) for i in valid_chr_list]
+        valid_chr_str = ','.join(valid_chr_str)
+
         if load_np == True:
-            y_gene_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/true_cage_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_gat_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
-            n_contacts_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/n_contacts_'+cell_line_1+'_'+str(i)+'.npy')
-            gene_names = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_names_'+cell_line_1+'_'+str(i)+'.npy')
-            gene_tss = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_tss_'+cell_line_1+'_'+str(i)+'.npy')
-            gene_chr = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_chr_'+cell_line_1+'_'+str(i)+'.npy')
+            y_gene_1 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_1+'_'+str(i)+'.npy')
+            y_hat_gene_gat_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
+            y_hat_gene_cnn_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
+            n_contacts_1 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_1+'_'+str(i)+'.npy')
+            gene_names = np.load(data_path+'/results/numpy/cage_prediction/gene_names_'+cell_line_1+'_'+str(i)+'.npy')
+            gene_tss = np.load(data_path+'/results/numpy/cage_prediction/gene_tss_'+cell_line_1+'_'+str(i)+'.npy')
+            gene_chr = np.load(data_path+'/results/numpy/cage_prediction/gene_chr_'+cell_line_1+'_'+str(i)+'.npy')
         else:
-            model_name_gat = '../models/'+cell_line_1+'/Epi-GraphReg_'+cell_line_1+'_valid_chr_'+str(i)+','+str(iv2)+'.h5'
+            model_name_gat = data_path+'/models/'+cell_line_1+'/Epi-GraphReg_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
             model_gat_1 = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
             model_gat_1.trainable = False
             model_gat_1._name = 'Epi-GraphReg'
             #model_gat_1.summary()
 
-            model_name = '../models/'+cell_line_1+'/Epi-CNN_'+cell_line_1+'_valid_chr_'+str(i)+','+str(iv2)+'.h5'
+            model_name = data_path+'/models/'+cell_line_1+'/Epi-CNN_'+cell_line_1+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
             model_cnn_1 = tf.keras.models.load_model(model_name)
             model_cnn_1.trainable = False
             model_cnn_1._name = 'Epi-CNN'
@@ -847,21 +940,21 @@ if logfold == True:
                     chr_list, valid_chr_list, test_chr_list, cell_line_1, organism, batch_size, write_bw)
         
         if load_np == True:
-            y_gene_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/true_cage_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_gat_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
-            n_contacts_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/n_contacts_'+cell_line_2+'_'+str(i)+'.npy')
-            gene_names = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_names_'+cell_line_2+'_'+str(i)+'.npy')
-            gene_tss = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_tss_'+cell_line_2+'_'+str(i)+'.npy')
-            gene_chr = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/gene_chr_'+cell_line_2+'_'+str(i)+'.npy')
+            y_gene_2 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_2+'_'+str(i)+'.npy')
+            y_hat_gene_gat_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
+            y_hat_gene_cnn_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
+            n_contacts_2 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_2+'_'+str(i)+'.npy')
+            gene_names = np.load(data_path+'/results/numpy/cage_prediction/gene_names_'+cell_line_2+'_'+str(i)+'.npy')
+            gene_tss = np.load(data_path+'/results/numpy/cage_prediction/gene_tss_'+cell_line_2+'_'+str(i)+'.npy')
+            gene_chr = np.load(data_path+'/results/numpy/cage_prediction/gene_chr_'+cell_line_2+'_'+str(i)+'.npy')
         else:
-            model_name_gat = '../models/'+cell_line_2+'/Epi-GraphReg_'+cell_line_2+'_valid_chr_'+str(i)+','+str(iv2)+'.h5'
+            model_name_gat = data_path+'/models/'+cell_line_2+'/Epi-GraphReg_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
             model_gat_2 = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
             model_gat_2.trainable = False
             model_gat_2._name = 'Epi-GraphReg'
             #model_gat_2.summary()
 
-            model_name = '../models/'+cell_line_2+'/Epi-CNN_'+cell_line_2+'_valid_chr_'+str(i)+','+str(iv2)+'.h5'
+            model_name = data_path+'/models/'+cell_line_2+'/Epi-CNN_'+cell_line_2+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
             model_cnn_2 = tf.keras.models.load_model(model_name)
             model_cnn_2.trainable = False
             model_cnn_2._name = 'Epi-CNN'
@@ -953,7 +1046,7 @@ if logfold == True:
 
     df_unq = df_unq.sort_values(by='chr',axis=0)
     df_unq = df_unq.reset_index(drop=True)
-    df_unq.to_csv('/media/labuser/STORAGE/GraphReg/data/csv/CAGE_GM12878_K562.csv',sep=',', index=False)
+    df_unq.to_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv',sep=',', index=False)
     '''
 
     print('Mean LogFC R GAT: ', np.mean(R_gat, axis=0), ' +/- ', np.std(R_gat, axis=0), ' std')
@@ -1119,15 +1212,15 @@ if logfold == True:
     ##### scatter plots #####
     if plot_scatter == True:
         for i in range(1,11):
-            y_gene_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/true_cage_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_gat_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
-            n_contacts_1 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/n_contacts_'+cell_line_1+'_'+str(i)+'.npy')
+            y_gene_1 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_1+'_'+str(i)+'.npy')
+            y_hat_gene_gat_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
+            y_hat_gene_cnn_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
+            n_contacts_1 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_1+'_'+str(i)+'.npy')
 
-            y_gene_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/true_cage_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_gat_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
-            n_contacts_2 = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/cage_prediction/n_contacts_'+cell_line_2+'_'+str(i)+'.npy')
+            y_gene_2 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_2+'_'+str(i)+'.npy')
+            y_hat_gene_gat_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
+            y_hat_gene_cnn_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
+            n_contacts_2 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_2+'_'+str(i)+'.npy')
 
             n_contacts = np.minimum(n_contacts_1, n_contacts_2)
             idx_0 = np.where(n_contacts==0)[0]

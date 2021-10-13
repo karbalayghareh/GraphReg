@@ -327,8 +327,8 @@ def main():
         for j in range(len(vt)):
             train_chr_list.remove(vt[j])
 
-    best_loss = 10**20
-    max_early_stopping = 10
+    best_loss = 1e20
+    max_early_stopping = 5
     n_epochs = 100
     opt = tf.keras.optimizers.Adam(learning_rate=.0002, decay=1e-6)
     batch_size = 1

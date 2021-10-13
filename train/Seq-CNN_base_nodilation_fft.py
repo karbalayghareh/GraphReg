@@ -274,7 +274,7 @@ def main():
 
     cell_line = options.cell_line
     cell_lines = [cell_line]
-    model_name_cnn_base = data_path+'/models/'+cell_line+'/Seq-CNN_base_nodilution_fft_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
+    model_name_cnn_base = data_path+'/models/'+cell_line+'/Seq-CNN_base_nodilation_fft_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
 
     if options.organism == 'mouse':
         train_chr_list = [c for c in range(1,1+19)]
