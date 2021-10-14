@@ -5,10 +5,6 @@ import matplotlib.pyplot as plt
 from statannot import add_stat_annotation
 
 
-
-
-
-
 ##### check the effects of different 3D data and FDRs #####
 
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path

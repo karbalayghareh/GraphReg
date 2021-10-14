@@ -160,7 +160,6 @@ def read_tf_record_1shot(iterator):
             start = bin_idx[0].numpy()
             i0 = np.where(bin_idx.numpy()==0)[0][0]
             end = bin_idx[i0-1].numpy()+5000
-            #print('end: ', end)
             pos1 = np.arange(start, end, 100).astype(int)
             l = 60000 - len(pos1)
             pad = 10**15 * np.ones(l)
@@ -261,8 +260,7 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
         bw_y_pred_cnn.addHeader(chr_length)
 
     for i in chr_list:
-        #K = 0
-        print(' chr :', i)
+        print('chr :', i)
         file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
         tss_pos = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
@@ -340,11 +338,7 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         tss_pos_1 = tss_pos[np.logical_and(tss_pos >= pos[20000], tss_pos < pos[-1])]
 
                     for j in range(len(tss_pos_1)):
-                        #print('tss_pos_1: ', tss_pos_1[j])
-                        #print('pos: ', pos)
-
                         idx_tss = np.where(pos == int(np.floor(tss_pos_1[j]/100)*100))[0][0]
-                        #print('idx_tss: ', idx_tss)
                         idx_gene = np.where(tss_pos == tss_pos_1[j])[0]
                         
                         y_true_ = np.repeat(Y.numpy().ravel(), 50)
@@ -370,7 +364,6 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         x_dnase = np.append(x_dnase, x_dnase_[idx_tss])
 
             else:
-                #print('no data')
                 if write_bw == True:
                     assert len(pos_bw) == len(y_bw_) == len(y_pred_gat_bw_)
                     chroms_ = np.array(["chr"+str(i)] * len(pos_bw))
@@ -416,11 +409,11 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
 
 
 def set_axis_style(ax, labels, positions_tick):
-        ax.get_xaxis().set_tick_params(direction='out')
-        ax.xaxis.set_ticks_position('bottom')
-        ax.yaxis.set_tick_params(labelsize=15)
-        ax.set_xticks(positions_tick)
-        ax.set_xticklabels(labels, fontsize=20)
+    ax.get_xaxis().set_tick_params(direction='out')
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_tick_params(labelsize=15)
+    ax.set_xticks(positions_tick)
+    ax.set_xticklabels(labels, fontsize=20)
 
 def add_label(violin, labels, label):
     color = violin["bodies"][0].get_facecolor().flatten()
@@ -480,6 +473,7 @@ if prediction == True:
 
             y_gene, y_hat_gene_gat, y_hat_gene_cnn, _, _, gene_names, gene_tss, gene_chr, n_contacts, n_tss_in_bin, x_h3k4me3, x_h3k27ac, x_dnase = calculate_loss(model_gat, model_cnn, 
                     chr_list, valid_chr_list, test_chr_list, cell_line, organism, genome, batch_size, write_bw)
+
             np.save(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy', y_gene)
             np.save(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line+'_'+str(i)+'.npy', y_hat_gene_gat)
             np.save(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line+'_'+str(i)+'.npy', y_hat_gene_cnn)
@@ -503,7 +497,7 @@ if prediction == True:
         df_tmp['pred_cage_epi_cnn'] = y_hat_gene_cnn
         df_tmp['nll_epi_graphreg'] = poisson_loss_individual(y_gene, y_hat_gene_gat).numpy()
         df_tmp['nll_epi_cnn'] = poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy()
-        df_tmp['delta_nll'] = poisson_loss_individual(y_gene, y_hat_gene_gat).numpy() - poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy()
+        df_tmp['delta_nll'] = poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy() - poisson_loss_individual(y_gene, y_hat_gene_gat).numpy()    # if delta_nll > 0 then GraphReg prediction is better than CNN
 
         df_all_predictions = df_all_predictions.append(df_tmp).reset_index(drop=True)
 
@@ -604,8 +598,6 @@ if prediction == True:
                         'n_gene_test': n_gene[i-1,2], '3D_data': 'NA', 'FDR': 'NA', 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
 
         df.to_csv(data_path+'/results/csv/cage_prediction/epi_models_R_NLL_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
-
-
 
     ##### plot violin plots #####
     if plot_violin == True:
@@ -936,7 +928,7 @@ if logfold == True:
             model_cnn_1._name = 'Epi-CNN'
             #model_cnn_1.summary()
 
-            y_gene_1, y_hat_gene_gat_1, y_hat_gene_cnn_1, _, _, gene_names, gene_tss, gene_chr, n_contacts_1 = calculate_loss(model_gat_1, model_cnn_1, 
+            y_gene_1, y_hat_gene_gat_1, y_hat_gene_cnn_1, _, _, gene_names, gene_tss, gene_chr, n_contacts_1, _, _, _, _ = calculate_loss(model_gat_1, model_cnn_1, 
                     chr_list, valid_chr_list, test_chr_list, cell_line_1, organism, batch_size, write_bw)
         
         if load_np == True:
@@ -960,7 +952,7 @@ if logfold == True:
             model_cnn_2._name = 'Epi-CNN'
             #model_cnn_2.summary()
             
-            y_gene_2, y_hat_gene_gat_2, y_hat_gene_cnn_2, _, _, gene_names, gene_tss, gene_chr, n_contacts_2 = calculate_loss(model_gat_2, model_cnn_2, 
+            y_gene_2, y_hat_gene_gat_2, y_hat_gene_cnn_2, _, _, gene_names, gene_tss, gene_chr, n_contacts_2, _, _, _, _ = calculate_loss(model_gat_2, model_cnn_2, 
                     chr_list, valid_chr_list, test_chr_list,  cell_line_2, organism, batch_size, write_bw)
 
         '''
