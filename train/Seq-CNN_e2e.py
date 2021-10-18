@@ -224,7 +224,7 @@ def main():
     # Model definition
     if re_load:
         model_name = 'model_name.h5'
-        model = tf.keras.models.load_model(model_name, custom_objects={'GraphAttention': GraphAttention})
+        model = tf.keras.models.load_model(model_name)
         model.summary()
     else:
         tf.keras.backend.clear_session()

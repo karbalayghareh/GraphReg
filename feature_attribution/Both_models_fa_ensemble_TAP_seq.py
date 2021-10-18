@@ -26,10 +26,17 @@ from sklearn.metrics import auc
 import pyBigWig
 from collections import Counter
 
-def log2(x):
-  numerator = tf.math.log(x)
-  denominator = tf.math.log(tf.constant(2.))
-  return numerator / denominator
+##### Input 
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+qval = .1                                       # 0.1, 0.01, 0.001
+assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
+
+if qval == 0.1:
+    fdr = '1'
+elif qval == 0.01:
+    fdr = '01'
+elif qval == 0.001:
+    fdr = '001'
 
 def parse_proto(example_protos):
       features = {
@@ -126,7 +133,6 @@ def read_tf_record_1shot(iterator):
             start = bin_idx[0].numpy()
             i0 = np.where(bin_idx.numpy()==0)[0][0]
             end = bin_idx[i0-1].numpy()+5000
-            #print('end: ', end)
             pos1 = np.arange(start, end, 100).astype(int)
             l = 60000 - len(pos1)
             pad = 10**15 * np.ones(l)
@@ -189,7 +195,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
     for num, cell_line in enumerate(cell_lines):
         for i, chrm in enumerate(chr_list):
             print(gene_names_list[i])
-            file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_'+cell_line+'_'+chrm+'.tfr'
+            file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chrm+'.tfr'
             iterator = dataset_iterator(file_name, batch_size)
             while True:
                 data_exist, X, X_epi, Y, adj, idx, tss_idx, pos = read_tf_record_1shot(iterator)
@@ -256,7 +262,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
                             ##### Epi-CNN deepshap #####
                             saliency_method = 'deepshap'
-                            shap_values_e_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-CNN_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                            shap_values_e_cnn = np.load(data_path+'/results/numpy/feature_attribution/Epi-CNN_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
                             scores_cnn = K.reshape(shap_values_e_cnn, [60000,3])
                             scores_cnn = K.sum(scores_cnn, axis = 1).numpy()
                             print('Epi-CNN deepshap: ', scores_cnn.shape, np.min(scores_cnn), np.max(scores_cnn), np.mean(scores_cnn))
@@ -285,7 +291,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
                             ##### Epi-CNN saliency #####
                             saliency_method = 'saliency'
-                            grads_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-CNN_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                            grads_cnn = np.load(data_path+'/results/numpy/feature_attribution/Epi-CNN_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
                             scores_cnn = K.reshape(grads_cnn * X_epi, [60000,3])
                             scores_cnn = K.sum(scores_cnn, axis = 1).numpy()
                             print('Epi-CNN saliency: ', scores_cnn.shape, np.min(scores_cnn), np.max(scores_cnn), np.mean(scores_cnn))
@@ -314,7 +320,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
                             ##### Seq-CNN saliency #####
                             saliency_method = 'saliency'
-                            grads_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-CNN_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                            grads_cnn = np.load(data_path+'/results/numpy/feature_attribution/Seq-CNN_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
                             scores_cnn = K.reshape(grads_cnn, [60000,64])
                             scores_cnn = K.sum(scores_cnn, axis = 1).numpy()
                             print('Seq-CNN saliency: ', scores_cnn.shape, np.min(scores_cnn), np.max(scores_cnn), np.mean(scores_cnn))
@@ -346,7 +352,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
                             ##### Epi-GraphReg deepshap #####
                             saliency_method = 'deepshap'
-                            shap_values_e_graphreg = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-GraphReg_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                            shap_values_e_graphreg = np.load(data_path+'/results/numpy/feature_attribution/Epi-GraphReg_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
                             scores_graphreg = K.reshape(shap_values_e_graphreg, [60000,3])
                             scores_graphreg = K.sum(scores_graphreg, axis = 1).numpy()
                             print('Epi-GraphReg deepshap: ', scores_graphreg.shape, np.min(scores_graphreg), np.max(scores_graphreg), np.mean(scores_graphreg))
@@ -375,7 +381,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
                             ##### Epi-GraphReg saliency #####
                             saliency_method = 'saliency'
-                            shap_values_e_graphreg = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-GraphReg_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                            shap_values_e_graphreg = np.load(data_path+'/results/numpy/feature_attribution/Epi-GraphReg_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
                             scores_graphreg = K.reshape(shap_values_e_graphreg * X_epi, [60000,3])
                             scores_graphreg = K.sum(scores_graphreg, axis = 1).numpy()
                             print('Epi-GraphReg saliency: ', scores_graphreg.shape, np.min(scores_graphreg), np.max(scores_graphreg), np.mean(scores_graphreg))
@@ -404,7 +410,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
                             ##### Seq-GraphReg saliency #####
                             saliency_method = 'saliency'
-                            shap_values_s_graphreg = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-GraphReg_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                            shap_values_s_graphreg = np.load(data_path+'/results/numpy/feature_attribution/Seq-GraphReg_tap_seq_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
                             scores_graphreg = K.reshape(shap_values_s_graphreg, [60000,64])
                             scores_graphreg = K.sum(scores_graphreg, axis = 1).numpy()
                             print('Seq-GraphReg saliency: ', scores_graphreg.shape, np.min(scores_graphreg), np.max(scores_graphreg), np.mean(scores_graphreg))
@@ -433,7 +439,6 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
 
                 else:
-                    #print('no data')
                     break
 
     return (sp_abc, 
@@ -461,7 +466,7 @@ L = 40
 
 chr_list = np.array([])
 gene_tss_list = np.array([], dtype=np.int)
-data_frame_tap_seq = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/TAP_seq_enhancer_with_abc.csv')
+data_frame_tap_seq = pd.read_csv(data_path+'/data/csv/TAP_seq_enhancer_with_abc.csv')
 data_frame_tap_seq = data_frame_tap_seq[data_frame_tap_seq['Distance to TSS'] > dist]
 print(len(data_frame_tap_seq))
 gene_names_list = np.unique(data_frame_tap_seq['Gene'].values)

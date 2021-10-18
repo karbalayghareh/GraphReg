@@ -25,6 +25,18 @@ from sklearn.metrics import auc
 import pyBigWig
 from collections import Counter
 
+##### Input 
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+qval = .1                                       # 0.1, 0.01, 0.001
+assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
+
+if qval == 0.1:
+    fdr = '1'
+elif qval == 0.01:
+    fdr = '01'
+elif qval == 0.001:
+    fdr = '001'
+
 def log2(x):
   numerator = tf.math.log(x)
   denominator = tf.math.log(tf.constant(2.))
@@ -125,7 +137,6 @@ def read_tf_record_1shot(iterator):
             start = bin_idx[0].numpy()
             i0 = np.where(bin_idx.numpy()==0)[0][0]
             end = bin_idx[i0-1].numpy()+5000
-            #print('end: ', end)
             pos1 = np.arange(start, end, 100).astype(int)
             l = 60000 - len(pos1)
             pad = 10**15 * np.ones(l)
@@ -174,7 +185,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
     for num, cell_line in enumerate(cell_lines):
         for i, chrm in enumerate(chr_list):
             print(gene_names_list[i])
-            file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_'+cell_line+'_'+chrm+'.tfr'
+            file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chrm+'.tfr'
             iterator = dataset_iterator(file_name, batch_size)
             while True:
                 data_exist, X, X_epi, Y, adj, adj_real, idx, tss_idx, pos = read_tf_record_1shot(iterator)
@@ -186,7 +197,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 
                             ############### FlowFish analysis ###############
 
-                            data_frame_flowfish = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/FlowFISH_results.csv')  
+                            data_frame_flowfish = pd.read_csv(data_path+'/data/csv/FlowFISH_results.csv')  
                             cut_flowfish = data_frame_flowfish.loc[data_frame_flowfish['Gene'] == gene_names_list[i]]
                             #cut_flowfish = cut_flowfish[cut_flowfish['class'] != 'promoter']
                             #cut_flowfish = cut_flowfish[cut_flowfish['Reference'] == 'This study']
@@ -247,7 +258,24 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx: ', explain_output_idx)
                                     shap_values_cnn = 0
                                     for j in range(1,1+10):
-                                        model_name_cnn = '../models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+str(j)+','+str(j+10)+'.h5'
+                                        if organism == 'mouse' and i==9:
+                                            iv2 = i+10
+                                            it2 = 1
+                                        elif organism == 'mouse' and i==10:
+                                            iv2 = 1
+                                            it2 = 2
+                                        else:
+                                            iv2 = i+10
+                                            it2 = i+11
+                                        valid_chr_list = [i, iv2]
+                                        test_chr_list = [i+1, it2]
+
+                                        test_chr_str = [str(i) for i in test_chr_list]
+                                        test_chr_str = ','.join(test_chr_str)
+                                        valid_chr_str = [str(i) for i in valid_chr_list]
+                                        valid_chr_str = ','.join(valid_chr_str)
+
+                                        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                         model_cnn = tf.keras.models.load_model(model_name_cnn)
                                         model_cnn.trainable = False
                                         model_cnn._name = 'Epi-CNN'
@@ -258,9 +286,9 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                         shap_values_cnn = shap_values_cnn + shap_values_cnn_[0]
 
                                     shap_values_cnn = shap_values_cnn/10
-                                    np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', shap_values_cnn)
+                                    np.save(data_path+'/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', shap_values_cnn)
                                 else:
-                                    shap_values_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                    shap_values_cnn = np.load(data_path+'/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
 
                                 scores_cnn = K.reshape(shap_values_cnn, [60000,3])
                                 scores_cnn = K.sum(scores_cnn, axis = 1).numpy()
@@ -272,7 +300,24 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx_cnn: ', explain_output_idx_cnn)
                                     grads_cnn = 0
                                     for j in range(1,1+10):
-                                        model_name_cnn = '../models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+str(j)+','+str(j+10)+'.h5'
+                                        if organism == 'mouse' and i==9:
+                                            iv2 = i+10
+                                            it2 = 1
+                                        elif organism == 'mouse' and i==10:
+                                            iv2 = 1
+                                            it2 = 2
+                                        else:
+                                            iv2 = i+10
+                                            it2 = i+11
+                                        valid_chr_list = [i, iv2]
+                                        test_chr_list = [i+1, it2]
+
+                                        test_chr_str = [str(i) for i in test_chr_list]
+                                        test_chr_str = ','.join(test_chr_str)
+                                        valid_chr_str = [str(i) for i in valid_chr_list]
+                                        valid_chr_str = ','.join(valid_chr_str)
+
+                                        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                         model_cnn = tf.keras.models.load_model(model_name_cnn)
                                         model_cnn.trainable = False
                                         model_cnn._name = 'Epi-CNN'
@@ -285,9 +330,9 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                             #target_cnn = preds[:, explain_output_idx_cnn]
                                         grads_cnn = grads_cnn + tape.gradient(target_cnn, inp)
                                     grads_cnn = grads_cnn/10
-                                    np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_cnn)
+                                    np.save(data_path+'/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_cnn)
                                 else:
-                                    grads_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                    grads_cnn = np.load(data_path+'/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
 
                                 scores_cnn = K.reshape(grads_cnn * X_epi, [60000,3])
                                 scores_cnn = K.sum(scores_cnn, axis = 1).numpy()
@@ -325,7 +370,24 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx: ', explain_output_idx)
                                     shap_values_gat = 0
                                     for j in range(1,1+10):
-                                        model_name_gat = '../models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_valid_chr_'+str(j)+','+str(j+10)+'.h5'
+                                        if organism == 'mouse' and i==9:
+                                            iv2 = i+10
+                                            it2 = 1
+                                        elif organism == 'mouse' and i==10:
+                                            iv2 = 1
+                                            it2 = 2
+                                        else:
+                                            iv2 = i+10
+                                            it2 = i+11
+                                        valid_chr_list = [i, iv2]
+                                        test_chr_list = [i+1, it2]
+
+                                        test_chr_str = [str(i) for i in test_chr_list]
+                                        test_chr_str = ','.join(test_chr_str)
+                                        valid_chr_str = [str(i) for i in valid_chr_list]
+                                        valid_chr_str = ','.join(valid_chr_str)
+
+                                        model_name_gat = data_path+'/models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                         model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
                                         model_gat.trainable = False
                                         model_gat._name = 'Epi-GraphReg'
@@ -336,9 +398,9 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                         shap_values_gat = shap_values_gat + shap_values_gat_[0][0]
 
                                     shap_values_gat = shap_values_gat/10
-                                    np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', shap_values_gat)
+                                    np.save(data_path+'/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', shap_values_gat)
                                 else:
-                                    shap_values_gat = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                    shap_values_gat = np.load(data_path+'/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
 
                                 scores_gat = K.reshape(shap_values_gat, [60000,3])
                                 scores_gat = K.sum(scores_gat, axis = 1).numpy()
@@ -350,7 +412,24 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx_gat: ', explain_output_idx_gat)
                                     grads_gat = 0
                                     for j in range(1,1+10):
-                                        model_name_gat = '../models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_valid_chr_'+str(j)+','+str(j+10)+'.h5'
+                                        if organism == 'mouse' and i==9:
+                                            iv2 = i+10
+                                            it2 = 1
+                                        elif organism == 'mouse' and i==10:
+                                            iv2 = 1
+                                            it2 = 2
+                                        else:
+                                            iv2 = i+10
+                                            it2 = i+11
+                                        valid_chr_list = [i, iv2]
+                                        test_chr_list = [i+1, it2]
+
+                                        test_chr_str = [str(i) for i in test_chr_list]
+                                        test_chr_str = ','.join(test_chr_str)
+                                        valid_chr_str = [str(i) for i in valid_chr_list]
+                                        valid_chr_str = ','.join(valid_chr_str)
+
+                                        model_name_gat = data_path+'/models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                         model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
                                         model_gat.trainable = False
                                         model_gat._name = 'Epi-GraphReg'
@@ -363,9 +442,9 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                             #target_gat = preds[:, explain_output_idx_gat]
                                         grads_gat = grads_gat + tape.gradient(target_gat, inp)
                                     grads_gat = grads_gat/10
-                                    np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_gat)
+                                    np.save(data_path+'/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_gat)
                                 else:
-                                    grads_gat = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                    grads_gat = np.load(data_path+'/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
 
                                 scores_gat = K.reshape(grads_gat * X_epi, [60000,3])
                                 scores_gat = K.sum(scores_gat, axis = 1).numpy()
@@ -415,13 +494,13 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                         ("chr19", 61425000)]
 
                             if write_bw == True:
-                                bw_flowfish = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/feature_attribution/Epi-models/flowfish_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
+                                bw_flowfish = pyBigWig.open(data_path+'/results/bigwig/feature_attribution/Epi-models/flowfish_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
                                 bw_flowfish.addHeader(header)
-                                bw_abc = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/feature_attribution/Epi-models/abc_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
+                                bw_abc = pyBigWig.open(data_path+'/results/bigwig/feature_attribution/Epi-models/abc_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
                                 bw_abc.addHeader(header)
-                                bw_GraphReg = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/feature_attribution/Epi-models/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
+                                bw_GraphReg = pyBigWig.open(data_path+'/results/bigwig/feature_attribution/Epi-models/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
                                 bw_GraphReg.addHeader(header)
-                                bw_CNN = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/feature_attribution/Epi-models/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
+                                bw_CNN = pyBigWig.open(data_path+'/results/bigwig/feature_attribution/Epi-models/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
                                 bw_CNN.addHeader(header)
 
                                 chroms = np.array([chrm] * len(pos))
@@ -441,7 +520,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 bw_CNN.close()
 
                                 cnt = -1
-                                with open('/media/labuser/STORAGE/GraphReg/results/bigwig/feature_attribution/Epi-models/candidates_'+cell_line+'_'+gene_names_list[i]+'.bed', "w") as bed_file:
+                                with open(data_path+'/results/bigwig/feature_attribution/Epi-models/candidates_'+cell_line+'_'+gene_names_list[i]+'.bed', "w") as bed_file:
                                         for s_idx, e_idx in zip(start_flowfish, end_flowfish):
                                             cnt = cnt+1
                                             line = chrm+'\t'+str(s_idx)+'\t'+str(e_idx)+'\t'+str(significant_flowfish_bool[cnt])
@@ -467,7 +546,7 @@ saliency_method = 'saliency'  # 'saliency' or 'deepshap'
 
 chr_list = np.array([])
 gene_tss_list = np.array([], dtype=np.int)
-data_frame_flowfish = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/FlowFISH_results.csv')  
+data_frame_flowfish = pd.read_csv(data_path+'/data/csv/FlowFISH_results.csv')  
 data_frame_flowfish = data_frame_flowfish[data_frame_flowfish['chr'] != 'chrX']
 #data_frame_flowfish = data_frame_flowfish[data_frame_flowfish['class'] != 'promoter']
 #data_frame_flowfish = data_frame_flowfish[data_frame_flowfish['Reference'] == 'This study']

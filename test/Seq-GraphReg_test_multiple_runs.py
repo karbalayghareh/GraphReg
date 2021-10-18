@@ -2,7 +2,7 @@ from __future__ import division
 import sys
 import os
 sys.path.insert(0,'../train')
-  
+
 from tensorflow.keras.layers import Input, Dropout
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
@@ -43,6 +43,8 @@ plot_scatter = False
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 qval = .1                                       # 0.1, 0.01, 0.001
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
+dilated = True                                  # use dilated CNN in base model
+fft = True                                      # use fft in base CNN model (dh/dx where h is middle layer of base CNN)
 
 if qval == 0.1:
     fdr = '1'
@@ -190,7 +192,7 @@ def read_tf_record_1shot(iterator):
         last_batch = 10
     return data_exist, seq, X_epi, Y, adj, idx, tss_idx, pos, last_batch
 
-def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_line, organism, genome, batch_size, write_bw):
+def calculate_loss(model_cnn_base, model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_line, organism, genome, batch_size, write_bw):
     loss_gat_all = np.array([])
     loss_cnn_all = np.array([])
     Y_hat_gat_all = np.array([])
@@ -283,13 +285,21 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
 
             ### Creating BigWig files for true and predicted CAGE tracks ###
             if write_bw == True:
+                H = []
                 if data_exist:
                     pos_mid = pos[20000:40000]
                     if (pos_mid[-1] < 10**15):
                         pos_bw = np.append(pos_bw, pos_mid)
 
-                        Y_hat_cnn, _, _, _, _ = model_cnn(seq)
-                        Y_hat_gat, _, _, _, _, _ = model_gat([seq, adj])
+                        for jj in range(0,60,10):
+                            seq_batch = seq[jj:jj+10]
+                            _,_,_, h = model_cnn_base(seq_batch)
+                            H.append(h)
+                        x_in = K.concatenate(H, axis = 0)
+                        x_in = K.reshape(x_in, [1, 60000, 64])
+
+                        Y_hat_cnn = model_cnn(x_in)
+                        Y_hat_gat, _ = model_gat([x_in, adj])
 
                         Y_idx = tf.gather(Y, tf.range(T, 2*T), axis=1)
                         Y_hat_cnn_idx = tf.gather(Y_hat_cnn, tf.range(T, 2*T), axis=1)
@@ -301,11 +311,18 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         y_bw_ = np.append(y_bw_, y1)
                         y_pred_gat_bw_= np.append(y_pred_gat_bw_, y2)
                         y_pred_cnn_bw_ = np.append(y_pred_cnn_bw_, y3)
-
+            H = []
             if data_exist:
                 if tf.reduce_sum(tf.gather(tss_idx, idx)) > 0:
-                    Y_hat_cnn, _, _, _, _ = model_cnn(seq)
-                    Y_hat_gat, _, _, _, _, _ = model_gat([seq, adj])
+                    for jj in range(0,60,10):
+                        seq_batch = seq[jj:jj+10]
+                        _,_,_, h = model_cnn_base(seq_batch)
+                        H.append(h)
+                    x_in = K.concatenate(H, axis = 0)
+                    x_in = K.reshape(x_in, [1, 60000, 64])
+
+                    Y_hat_cnn = model_cnn(x_in)
+                    Y_hat_gat, _ = model_gat([x_in, adj])
 
                     Y_idx = tf.gather(Y, idx, axis=1)
                     Y_hat_cnn_idx = tf.gather(Y_hat_cnn, idx, axis=1)
@@ -444,19 +461,39 @@ if prediction == True:
             gene_tss = np.load(data_path+'/results/numpy/cage_prediction/gene_tss_'+cell_line+'_'+str(i)+'.npy')
             gene_chr = np.load(data_path+'/results/numpy/cage_prediction/gene_chr_'+cell_line+'_'+str(i)+'.npy')
         else:
-            model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            if (not fft) and dilated:
+                model_name_cnn_base = data_path+'/models/'+cell_line+'/Seq-CNN_base_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif (not fft) and (not dilated):
+                model_name_cnn_base = data_path+'/models/'+cell_line+'/Seq-CNN_base_nodilation_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_nodilation_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_nodilation_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif fft and dilated:
+                model_name_cnn_base = data_path+'/models/'+cell_line+'/Seq-CNN_base_fft_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif fft and (not dilated):
+                model_name_cnn_base = data_path+'/models/'+cell_line+'/Seq-CNN_base_nodilation_fft_'+cell_line+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_nodilation_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_nodilation_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+
+            model_cnn_base = tf.keras.models.load_model(model_name_cnn_base)
+            model_cnn_base.trainable = False
+            model_cnn_base._name = 'Seq-CNN_base'
+            #model_cnn_base.summary()
+            
             model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
             model_gat.trainable = False
-            model_gat._name = 'Seq-GraphReg_e2e'
+            model_gat._name = 'Seq-GraphReg'
             #model_gat.summary()
 
-            model_name = data_path+'/models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_cnn = tf.keras.models.load_model(model_name)
+            model_cnn = tf.keras.models.load_model(model_name_cnn)
             model_cnn.trainable = False
-            model_cnn._name = 'Seq-CNN_e2e'
+            model_cnn._name = 'Seq-CNN'
             #model_cnn.summary()
 
-            y_gene, y_hat_gene_gat, y_hat_gene_cnn, _, _, gene_names, gene_tss, gene_chr, n_contacts, n_tss_in_bin = calculate_loss(model_gat, model_cnn, 
+            y_gene, y_hat_gene_gat, y_hat_gene_cnn, _, _, gene_names, gene_tss, gene_chr, n_contacts, n_tss_in_bin = calculate_loss(model_cnn_base, model_gat, model_cnn, 
                             chr_list, valid_chr_list, test_chr_list, cell_line, organism, genome, batch_size, write_bw)
 
             np.save(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line+'_'+str(i)+'.npy', y_gene)
@@ -537,8 +574,14 @@ if prediction == True:
     print('Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
 
     # write the prediction to csv file
-    df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_e2e_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
-
+    if (not fft) and dilated:
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+    elif (not fft) and (not dilated):
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_nodilation_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+    elif fft and dilated:
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_fft_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+    elif fft and (not dilated):
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_nodilation_fft_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
     ##### plot violin plots #####
     if plot_violin == True:
@@ -624,7 +667,7 @@ if prediction == True:
                 ax2.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_loss[i]), ha='center', va='bottom', color=col, fontsize=15)
 
         #plt.show()
-        plt.savefig('../figs/Seq-models_e2e/violinplot_'+cell_line+'.png')
+        plt.savefig('../figs/Seq-models/violinplot_'+cell_line+'.png')
 
 
     ##### plot boxplots (for all gene sets) #####
@@ -678,7 +721,7 @@ if prediction == True:
         #fig.tight_layout()
         fig.suptitle(cell_line, fontsize=25)
         fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Seq-models_e2e/boxplot_'+cell_line+'_all.png')
+        plt.savefig('../figs/Seq-models/boxplot_'+cell_line+'_all.png')
 
         ##### plot boxplots (for gene sets C and D) #####
         df = pd.DataFrame(columns=['R','NLL','Method','Set'])
@@ -726,7 +769,7 @@ if prediction == True:
         #fig.tight_layout()
         fig.suptitle(cell_line, fontsize=25)
         fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Seq-models_e2e/boxplot_'+cell_line+'_CD.png')
+        plt.savefig('../figs/Seq-models/boxplot_'+cell_line+'_CD.png')
 
 
     ##### scatter plots #####
@@ -772,7 +815,7 @@ if prediction == True:
             cbar.ax.tick_params(labelsize=15)
             #plt.show()
             plt.tight_layout()
-            plt.savefig('../figs/Seq-models_e2e/scatter_plots/Seq-GraphReg_e2e_scatterplot_'+cell_line+'_'+str(i)+'.png')
+            plt.savefig('../figs/Seq-models/scatter_plots/Seq-GraphReg_scatterplot_'+cell_line+'_'+str(i)+'.png')
 
             plt.figure(figsize=(9,8))
             cm = plt.cm.get_cmap('viridis_r')
@@ -797,7 +840,7 @@ if prediction == True:
             cbar.ax.tick_params(labelsize=15)
             #plt.show()
             plt.tight_layout()
-            plt.savefig('../figs/Seq-models_e2e/scatter_plots/Seq-CNN_e2e_scatterplot_'+cell_line+'_'+str(i)+'.png')
+            plt.savefig('../figs/Seq-models/scatter_plots/Seq-CNN_e2e_scatterplot_'+cell_line+'_'+str(i)+'.png')
 
 
 #################### log fold change ####################
@@ -832,19 +875,39 @@ if logfold == True:
             y_hat_gene_cnn_1 = np.load(data_path+'/results/numpy/cage_prediction/Seq-CNN_predicted_cage_'+cell_line_1+'_'+str(i)+'.npy')
             n_contacts_1 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_1+'_'+str(i)+'.npy')
         else:
-            model_name_gat = data_path+'/models/'+cell_line_1+'/Seq-GraphReg_e2e_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            if (not fft) and dilated:
+                model_name_cnn_base = data_path+'/models/'+cell_line_1+'/Seq-CNN_base_'+cell_line_1+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_1+'/Seq-GraphReg_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_1+'/Seq-CNN_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif (not fft) and (not dilated):
+                model_name_cnn_base = data_path+'/models/'+cell_line_1+'/Seq-CNN_base_nodilation_'+cell_line_1+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_1+'/Seq-GraphReg_nodilation_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_1+'/Seq-CNN_nodilation_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif fft and dilated:
+                model_name_cnn_base = data_path+'/models/'+cell_line_1+'/Seq-CNN_base_fft_'+cell_line_1+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_1+'/Seq-GraphReg_fft_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_1+'/Seq-CNN_fft_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif fft and (not dilated):
+                model_name_cnn_base = data_path+'/models/'+cell_line_1+'/Seq-CNN_base_nodilation_fft_'+cell_line_1+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_1+'/Seq-GraphReg_nodilation_fft_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_1+'/Seq-CNN_nodilation_fft_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+
+            model_cnn_base_1 = tf.keras.models.load_model(model_name_cnn_base)
+            model_cnn_base_1.trainable = False
+            model_cnn_base_1._name = 'Seq-CNN_base'
+            #model_cnn_base_1.summary()
+            
             model_gat_1 = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
             model_gat_1.trainable = False
-            model_gat_1._name = 'Seq-GraphReg_e2e'
+            model_gat_1._name = 'Seq-GraphReg'
             #model_gat_1.summary()
 
-            model_name = data_path+'/models/'+cell_line_1+'/Seq-CNN_e2e_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_cnn_1 = tf.keras.models.load_model(model_name)
+            model_cnn_1 = tf.keras.models.load_model(model_name_cnn)
             model_cnn_1.trainable = False
-            model_cnn_1._name = 'Seq-CNN_e2e'
+            model_cnn_1._name = 'Seq-CNN'
             #model_cnn_1.summary()
 
-            y_gene_1, y_hat_gene_gat_1, y_hat_gene_cnn_1, _, _, _, _, _, n_contacts_1, _ = calculate_loss(model_gat_1, model_cnn_1, 
+            y_gene_1, y_hat_gene_gat_1, y_hat_gene_cnn_1, _, _, _, _, _, n_contacts_1, _ = calculate_loss(model_cnn_base_1, model_gat_1, model_cnn_1, 
                                         chr_list, valid_chr_list, test_chr_list, cell_line_1, organism, genome, batch_size, write_bw)
         
         if load_np == True:
@@ -853,19 +916,39 @@ if logfold == True:
             y_hat_gene_cnn_2 = np.load(data_path+'/results/numpy/cage_prediction/Seq-CNN_predicted_cage_'+cell_line_2+'_'+str(i)+'.npy')
             n_contacts_2 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_2+'_'+str(i)+'.npy')
         else:
-            model_name_gat = data_path+'/models/'+cell_line_2+'/Seq-GraphReg_e2e_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            if (not fft) and dilated:
+                model_name_cnn_base = data_path+'/models/'+cell_line_2+'/Seq-CNN_base_'+cell_line_2+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_2+'/Seq-GraphReg_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_2+'/Seq-CNN_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif (not fft) and (not dilated):
+                model_name_cnn_base = data_path+'/models/'+cell_line_2+'/Seq-CNN_base_nodilation_'+cell_line_2+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_2+'/Seq-GraphReg_nodilation_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_2+'/Seq-CNN_nodilation_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif fft and dilated:
+                model_name_cnn_base = data_path+'/models/'+cell_line_2+'/Seq-CNN_base_fft_'+cell_line_2+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_2+'/Seq-GraphReg_fft_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_2+'/Seq-CNN_fft_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+            elif fft and (not dilated):
+                model_name_cnn_base = data_path+'/models/'+cell_line_2+'/Seq-CNN_base_nodilation_fft_'+cell_line_2+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_gat = data_path+'/models/'+cell_line_2+'/Seq-GraphReg_nodilation_fft_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                model_name_cnn = data_path+'/models/'+cell_line_2+'/Seq-CNN_nodilation_fft_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+
+            model_cnn_base_2 = tf.keras.models.load_model(model_name_cnn_base)
+            model_cnn_base_2.trainable = False
+            model_cnn_base_2._name = 'Seq-CNN_base'
+            #model_cnn_base_2.summary()
+            
             model_gat_2 = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
             model_gat_2.trainable = False
-            model_gat_2._name = 'Seq-GraphReg_e2e'
+            model_gat_2._name = 'Seq-GraphReg'
             #model_gat_2.summary()
 
-            model_name = data_path+'/models/'+cell_line_2+'/Seq-CNN_e2e_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_cnn_2 = tf.keras.models.load_model(model_name)
+            model_cnn_2 = tf.keras.models.load_model(model_name_cnn)
             model_cnn_2.trainable = False
-            model_cnn_2._name = 'Seq-CNN_e2e'
+            model_cnn_2._name = 'Seq-CNN'
             #model_cnn_2.summary()
 
-            y_gene_2, y_hat_gene_gat_2, y_hat_gene_cnn_2, _, _, _, _, _, n_contacts_2, _ = calculate_loss(model_gat_2, model_cnn_2,
+            y_gene_2, y_hat_gene_gat_2, y_hat_gene_cnn_2, _, _, _, _, _, n_contacts_2, _ = calculate_loss(model_cnn_base_2, model_gat_2, model_cnn_2,
                                          chr_list, valid_chr_list, test_chr_list, cell_line_2, organism, genome, batch_size, write_bw)
 
         for j in range(4):
@@ -1010,7 +1093,7 @@ if logfold == True:
                 ax2.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_loss[i]), ha='center', va='bottom', color=col, fontsize=15)
 
         #plt.show()
-        plt.savefig('../figs/Seq-models_e2e/violinplot_LogFC_'+cell_line_1+'_'+cell_line_2+'.png')
+        plt.savefig('../figs/Seq-models/violinplot_LogFC_'+cell_line_1+'_'+cell_line_2+'.png')
 
 
     ##### plot box plots (all gene sets) #####
@@ -1064,7 +1147,7 @@ if logfold == True:
         #fig.tight_layout()
         fig.suptitle('LogFC (GM12878/K562)', fontsize=25)
         fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Seq-models_e2e/boxplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_all.png')
+        plt.savefig('../figs/Seq-models/boxplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_all.png')
 
     ##### scatter plots #####
     if plot_scatter == True:
@@ -1121,7 +1204,7 @@ if logfold == True:
             plt.clim(1,7)
             #plt.show()
             plt.tight_layout()
-            plt.savefig('../figs/Seq-models_e2e/scatter_plots/Seq-GraphReg_e2e_scatterplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_model_'+str(i)+'.png')
+            plt.savefig('../figs/Seq-models/scatter_plots/Seq-GraphReg_scatterplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_model_'+str(i)+'.png')
 
             plt.figure(figsize=(8,7))
             cm = plt.cm.get_cmap('viridis_r')
@@ -1148,4 +1231,4 @@ if logfold == True:
             #plt.show()
             plt.tight_layout()
             #fig.tight_layout(rect=[0, 0, 1, .93])
-            plt.savefig('../figs/Seq-models_e2e/scatter_plots/Seq-CNN_e2e_scatterplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_model_'+str(i)+'.png')
+            plt.savefig('../figs/Seq-models/scatter_plots/Seq-CNN_e2e_scatterplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_model_'+str(i)+'.png')

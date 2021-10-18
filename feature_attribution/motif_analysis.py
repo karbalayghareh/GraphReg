@@ -8,6 +8,9 @@ import scipy as sp
 #import statsmodels.api as sm
 import statsmodels.stats.multitest as fdr
 
+
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+
 p_adj_thr = 0.05
 p_val_thr = 1e-4
 gene_thr = 50
@@ -18,11 +21,11 @@ TF_list_CRISPRi = ['NFYA','NR2C2','HSF1','MITF','MAF1','NR4A1','STAT5A','MXD3',
                     'HOXB4','DLX1','USF1','STAT6','FOXK2','ZNF395','RFX5','BACH1','ZNF143',
                     'ARID3A','SP1','ILF2','TEAD4','HINFP','RELA','SP2','TEAD2','THAP1']
 TF_list_CRISPRi.sort()
-df_K_GM = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/CAGE_GM12878_K562.csv')
+df_K_GM = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
 
 ##### GM12878
-fimo_GM_GraphReg = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_GM12878_GraphReg_distal_cisbp/fimo.tsv', sep='\t')
-fimo_GM_CNN = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_GM12878_CNN_distal_cisbp/fimo.tsv', sep='\t')
+fimo_GM_GraphReg = pd.read_csv(data_path+'/results/fimo/fimo_out_GM12878_GraphReg_distal_cisbp/fimo.tsv', sep='\t')
+fimo_GM_CNN = pd.read_csv(data_path+'/results/fimo/fimo_out_GM12878_CNN_distal_cisbp/fimo.tsv', sep='\t')
 
 fimo_GM_GraphReg = fimo_GM_GraphReg[fimo_GM_GraphReg['p-value']<=p_val_thr].reset_index(drop=True)
 fimo_GM_CNN = fimo_GM_CNN[fimo_GM_CNN['p-value']<=p_val_thr].reset_index(drop=True)
@@ -46,8 +49,8 @@ motifs_GM_only_GraphReg = np.setdiff1d(motifs_GM_GraphReg, motifs_GM_shared)
 motifs_GM_only_CNN = np.setdiff1d(motifs_GM_CNN, motifs_GM_shared)
 
 ##### K562
-fimo_K562_GraphReg = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_K562_GraphReg_distal_cisbp/fimo.tsv', sep='\t')
-fimo_K562_CNN = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_K562_CNN_distal_cisbp/fimo.tsv', sep='\t')
+fimo_K562_GraphReg = pd.read_csv(data_path+'/results/fimo/fimo_out_K562_GraphReg_distal_cisbp/fimo.tsv', sep='\t')
+fimo_K562_CNN = pd.read_csv(data_path+'/results/fimo/fimo_out_K562_CNN_distal_cisbp/fimo.tsv', sep='\t')
 
 fimo_K562_GraphReg = fimo_K562_GraphReg[fimo_K562_GraphReg['p-value']<=p_val_thr].reset_index(drop=True)
 fimo_K562_CNN = fimo_K562_CNN[fimo_K562_CNN['p-value']<=p_val_thr].reset_index(drop=True)
@@ -478,8 +481,8 @@ plt.savefig('../figs/motif_analysis/heatmap_K562_CNN_with_genes_distal_cisbp.png
 ##### convert fimo.tsv to bed (for WashU browser)
 
 ##### GM12878
-CNN_fimo_motifs_bed = open('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_GM12878_CNN_distal/CNN_fimo_motifs_distal.bed', "w")
-GraphReg_fimo_motifs_bed = open('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_GM12878_GraphReg_distal/GraphReg_fimo_motifs_distal.bed', "w")
+CNN_fimo_motifs_bed = open(data_path+'/results/fimo/fimo_out_GM12878_CNN_distal/CNN_fimo_motifs_distal.bed', "w")
+GraphReg_fimo_motifs_bed = open(data_path+'/results/fimo/fimo_out_GM12878_GraphReg_distal/GraphReg_fimo_motifs_distal.bed', "w")
 
 N = len(fimo_GM_GraphReg)
 for i in range(N):
@@ -520,8 +523,8 @@ for i in range(N):
 CNN_fimo_motifs_bed.close()
 
 ##### K562
-CNN_fimo_motifs_bed = open('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_K562_CNN_distal/CNN_fimo_motifs_distal.bed', "w")
-GraphReg_fimo_motifs_bed = open('/media/labuser/STORAGE/GraphReg/results/fimo/fimo_out_K562_GraphReg_distal/GraphReg_fimo_motifs_distal.bed', "w")
+CNN_fimo_motifs_bed = open(data_path+'/results/fimo/fimo_out_K562_CNN_distal/CNN_fimo_motifs_distal.bed', "w")
+GraphReg_fimo_motifs_bed = open(data_path+'/results/fimo/fimo_out_K562_GraphReg_distal/GraphReg_fimo_motifs_distal.bed', "w")
 
 N = len(fimo_K562_GraphReg)
 for i in range(N):

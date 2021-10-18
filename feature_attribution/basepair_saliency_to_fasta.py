@@ -26,8 +26,17 @@ import pyBigWig
 from collections import Counter
 import pysam
 
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
+qval = .1                                       # 0.1, 0.01, 0.001
+if qval == 0.1:
+    fdr = '1'
+elif qval == 0.01:
+    fdr = '01'
+elif qval == 0.001:
+    fdr = '001'
 
-batch_size = 1
+batch_size = 1                # batch size
 organism = 'human'            # human/mouse
 genome = 'hg19'               # hg19
 saliency_method = 'saliency'  # saliency
@@ -37,7 +46,7 @@ cell = 'GM12878'              # GM12878/K562
 
 if cell == 'GM12878':
     # GM12878
-    df = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/CAGE_GM12878_K562.csv')
+    df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
     df_GM12878 = df[(df['M'] >= 1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
     df_GM12878 = df_GM12878.sort_values(by=['M','A'], ascending=False)
     df_GM12878 = df_GM12878.reset_index(drop=True)
@@ -52,7 +61,7 @@ if cell == 'GM12878':
 
 elif cell == 'K562':
     # K562
-    df = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/CAGE_GM12878_K562.csv')
+    df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
     df_K562 = df[(df['M'] <= -1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
     df_K562 = df_K562.sort_values(by=['M','A'], ascending=[True, False])
     df_K562 = df_K562.reset_index(drop=True)
@@ -324,17 +333,17 @@ else:
 
 #################### load model ####################
 
-CNN_motifs_fasta = open('/media/labuser/STORAGE/GraphReg/results/fimo/Seq-CNN_close_motifs_'+cell_line[0]+'.fasta', "w")
-GraphReg_motifs_fasta = open('/media/labuser/STORAGE/GraphReg/results/fimo/Seq-GraphReg_close_motifs_'+cell_line[0]+'.fasta', "w")
-fasta_open = pysam.Fastafile('/media/labuser/STORAGE/GraphReg/data/genome/hg19.ml.fa')
+CNN_motifs_fasta = open(data_path+'/results/fimo/Seq-CNN_close_motifs_'+cell_line[0]+'.fasta', "w")
+GraphReg_motifs_fasta = open(data_path+'/results/fimo/Seq-GraphReg_close_motifs_'+cell_line[0]+'.fasta', "w")
+fasta_open = pysam.Fastafile(data_path+'/data/genome/hg19.ml.fa')
 
 for num, cell_line in enumerate(cell_line):
     for i, chrm in enumerate(chr_list):
         print(gene_names_list[i])
         if load_fa == True:
-            file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_'+cell_line+'_'+chrm+'.tfr'
+            file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chrm+'.tfr'
         else:
-            file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_seq_'+cell_line+'_'+chrm+'.tfr'
+            file_name = data_path+'/data/tfrecords/tfr_seq_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chrm+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
         while True:
             if load_fa == True:
@@ -357,7 +366,24 @@ for num, cell_line in enumerate(cell_line):
                                 grads_cnn = 0
                                 grads_by_inp_cnn = 0
                                 for j in range(1,1+10):
-                                    model_name_cnn = '../models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_valid_chr_'+str(j)+','+str(j+10)+'.h5'
+                                    if organism == 'mouse' and i==9:
+                                        iv2 = i+10
+                                        it2 = 1
+                                    elif organism == 'mouse' and i==10:
+                                        iv2 = 1
+                                        it2 = 2
+                                    else:
+                                        iv2 = i+10
+                                        it2 = i+11
+                                    valid_chr_list = [i, iv2]
+                                    test_chr_list = [i+1, it2]
+
+                                    test_chr_str = [str(i) for i in test_chr_list]
+                                    test_chr_str = ','.join(test_chr_str)
+                                    valid_chr_str = [str(i) for i in valid_chr_list]
+                                    valid_chr_str = ','.join(valid_chr_str)
+
+                                    model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                     model_cnn = tf.keras.models.load_model(model_name_cnn)
                                     model_cnn.trainable = False
                                     model_cnn._name = 'Seq-CNN'
@@ -372,11 +398,11 @@ for num, cell_line in enumerate(cell_line):
                                     grads_cnn = grads_cnn + tape.gradient(target_cnn, inp)
                                 grads_by_inp_cnn = grads_by_inp_cnn/10
                                 grads_cnn = grads_cnn/10
-                                np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-CNN_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_by_inp_cnn)
-                                np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-CNN_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_cnn)
+                                np.save(data_path+'/results/numpy/feature_attribution/Seq-CNN_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_by_inp_cnn)
+                                np.save(data_path+'/results/numpy/feature_attribution/Seq-CNN_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_cnn)
                             else:
-                                grads_by_inp_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-CNN_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
-                                grads_cnn = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-CNN_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                grads_by_inp_cnn = np.load(data_path+'/results/numpy/feature_attribution/Seq-CNN_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                grads_cnn = np.load(data_path+'/results/numpy/feature_attribution/Seq-CNN_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
 
                             scores_cnn = K.reshape(grads_by_inp_cnn, [6000000,4])
                             scores_cnn = K.sum(scores_cnn, axis = 1).numpy()
@@ -392,7 +418,24 @@ for num, cell_line in enumerate(cell_line):
                                 grads_by_inp_gat = 0
                                 grads_gat = 0
                                 for j in range(1,1+10):
-                                    model_name_gat = '../models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_valid_chr_'+str(j)+','+str(j+10)+'.h5'
+                                    if organism == 'mouse' and i==9:
+                                        iv2 = i+10
+                                        it2 = 1
+                                    elif organism == 'mouse' and i==10:
+                                        iv2 = 1
+                                        it2 = 2
+                                    else:
+                                        iv2 = i+10
+                                        it2 = i+11
+                                    valid_chr_list = [i, iv2]
+                                    test_chr_list = [i+1, it2]
+
+                                    test_chr_str = [str(i) for i in test_chr_list]
+                                    test_chr_str = ','.join(test_chr_str)
+                                    valid_chr_str = [str(i) for i in valid_chr_list]
+                                    valid_chr_str = ','.join(valid_chr_str)
+
+                                    model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                     model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
                                     model_gat.trainable = False
                                     model_gat._name = 'Seq-GraphReg'
@@ -407,11 +450,11 @@ for num, cell_line in enumerate(cell_line):
                                     grads_gat = grads_gat + tape.gradient(target_gat, inp)
                                 grads_by_inp_gat = grads_by_inp_gat/10
                                 grads_gat = grads_gat/10
-                                np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-GraphReg_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_by_inp_gat)
-                                np.save('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-GraphReg_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_gat)
+                                np.save(data_path+'/results/numpy/feature_attribution/Seq-GraphReg_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_by_inp_gat)
+                                np.save(data_path+'/results/numpy/feature_attribution/Seq-GraphReg_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_gat)
                             else:
-                                grads_by_inp_gat = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-GraphReg_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
-                                grads_gat = np.load('/media/labuser/STORAGE/GraphReg/results/numpy/feature_attribution/Seq-GraphReg_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                grads_by_inp_gat = np.load(data_path+'/results/numpy/feature_attribution/Seq-GraphReg_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
+                                grads_gat = np.load(data_path+'/results/numpy/feature_attribution/Seq-GraphReg_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
 
                             scores_gat = K.reshape(grads_by_inp_gat, [6000000,4])
                             scores_gat = K.sum(scores_gat, axis = 1).numpy()
@@ -502,9 +545,9 @@ for num, cell_line in enumerate(cell_line):
    
 
                         if write_bw == True:
-                            bw_GraphReg = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/feature_attribution/Seq-models_basepair/Seq-GraphReg_BP_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
+                            bw_GraphReg = pyBigWig.open(data_path+'/results/bigwig/feature_attribution/Seq-models_basepair/Seq-GraphReg_BP_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
                             bw_GraphReg.addHeader(header)
-                            bw_CNN = pyBigWig.open('/media/labuser/STORAGE/GraphReg/results/bigwig/feature_attribution/Seq-models_basepair/Seq-CNN_BP_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
+                            bw_CNN = pyBigWig.open(data_path+'/results/bigwig/feature_attribution/Seq-models_basepair/Seq-CNN_BP_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.bw', "w")
                             bw_CNN.addHeader(header)
 
                             starts = pos.astype(np.int64)
@@ -520,9 +563,7 @@ for num, cell_line in enumerate(cell_line):
                             bw_GraphReg.close()
                             bw_CNN.close()
                         break
-
             else:
-                #print('no data')
                 break
 
 CNN_motifs_fasta.close()

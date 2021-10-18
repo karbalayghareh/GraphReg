@@ -4,9 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-fasta_open = pysam.Fastafile('/media/labuser/STORAGE/GraphReg/data/genome/hg19.ml.fa')
-peaks_fasta = open('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562.fasta', "w")
-peaks_bed = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/K562_H3K27ac_peaks.bed', sep="\t", header=None)
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+
+fasta_open = pysam.Fastafile(data_path+'/data/genome/hg19.ml.fa')
+peaks_fasta = open(data_path+'/results/fimo/peaks_H3K27ac_K562.fasta', "w")
+peaks_bed = pd.read_csv(data_path+'/data/csv/K562_H3K27ac_peaks.bed', sep="\t", header=None)
 peaks_bed = peaks_bed.sort_values(by=[0, 1]).reset_index(drop=True)
 peaks_bed = peaks_bed[((peaks_bed[0] != 'chrX') & (peaks_bed[0] != 'chrY'))].reset_index(drop=True)
 
@@ -27,7 +29,7 @@ peaks_fasta.close()
 
 ############### number of TFs in K562's H3K27ac peaks ############
 
-# fimo_out_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562/TF_positions.bed', sep="\t")
+# fimo_out_df = pd.read_csv(data_path+'/results/fimo/peaks_H3K27ac_K562/TF_positions.bed', sep="\t")
 # fimo_out_df.columns = ['chr', 'start', 'end', 'TF', '-log10(pval)', 'strand']
 # fimo_out_df = fimo_out_df.drop_duplicates(subset=['chr', 'start', 'end', 'TF']).reset_index(drop=True)
 # fimo_out_df['TF'] = fimo_out_df['TF'].str.strip()
@@ -35,9 +37,9 @@ peaks_fasta.close()
 # fimo_out_df.loc[fimo_out_df['TF']=='(ARID3A)_(Mus_musculus)_(DBD_1.00)', 'TF'] = 'ARID3A'
 # TFs = np.unique(fimo_out_df['TF'].values)
 # print('TFs: ', TFs)
-# fimo_out_df.to_csv('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t", header=False, index=False)
+# fimo_out_df.to_csv(data_path+'/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t", header=False, index=False)
 
-fimo_out_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
+fimo_out_df = pd.read_csv(data_path+'/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
 fimo_out_df.columns = ['chr', 'start', 'end', 'TF', '-log10(pval)', 'strand']
 TFs = np.unique(fimo_out_df['TF'].values)
 print('TFs: ', TFs)

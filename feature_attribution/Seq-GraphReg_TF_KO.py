@@ -33,10 +33,16 @@ from sklearn.metrics import roc_auc_score
 from sklearn.metrics import auc
 import statsmodels.stats.multitest as fdr
 
-def log2(x):
-  numerator = tf.math.log(x)
-  denominator = tf.math.log(tf.constant(2.))
-  return numerator / denominator
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+qval = .1                                       # 0.1, 0.01, 0.001
+assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
+
+if qval == 0.1:
+    FDR = '1'
+elif qval == 0.01:
+    FDR = '01'
+elif qval == 0.001:
+    FDR = '001'
 
 def poisson_loss(y_true, mu_pred):
     nll = tf.reduce_mean(tf.math.lgamma(y_true + 1) + mu_pred - y_true * tf.math.log(mu_pred))
@@ -171,7 +177,7 @@ def read_tf_record_1shot(iterator):
         last_batch = 10
     return data_exist, seq, X_epi, Y, adj, idx, tss_idx, pos, last_batch
 
-def calculate_loss(model_cnn_base, model_gat, model_cnn, chr_list, cell_line, organism, genome, batch_size, e2e, write_bw, TF_positions_df, TFs):
+def calculate_loss(model_gat, model_cnn, chr_list, cell_line, organism, genome, batch_size, e2e, write_bw, TF_positions_df, TFs):
     loss_gat_all = np.array([])
     loss_cnn_all = np.array([])
     Y_hat_gat_all = np.array([])
@@ -200,14 +206,13 @@ def calculate_loss(model_cnn_base, model_gat, model_cnn, chr_list, cell_line, or
     T = 400
 
     for i in chr_list:
-        #K = 0
         start_time = time.time()
-        print(' chr :', i)
+        print('chr :', i)
         chrm = 'chr'+str(i)
-        file_name = '/media/labuser/STORAGE/GraphReg/data/tfrecords/tfr_seq_'+cell_line+'_chr'+str(i)+'.tfr'
+        file_name = data_path+'/data/tfrecords/tfr_seq_'+cell_line+'_'+assay_type+'_FDR_'+FDR+'_chr'+str(i)+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
-        tss_pos = np.load('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
-        gene_names_all = np.load('/media/labuser/STORAGE/GraphReg/data/tss/'+organism+'/'+genome+'/tss_gene_chr'+str(i)+'.npy', allow_pickle=True)
+        tss_pos = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
+        gene_names_all = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_chr'+str(i)+'.npy', allow_pickle=True)
         tss_pos = tss_pos[tss_pos>0]
         print('tss_pos: ', len(tss_pos))
         gene_names_all = gene_names_all[gene_names_all != ""]
@@ -322,7 +327,7 @@ cell_line = 'K562'            # K562/GM12878/mESC
 genome = 'hg19'               # hg19
 
 
-TF_positions_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
+TF_positions_df = pd.read_csv(data_path+'/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
 TF_positions_df.columns = ['chr', 'start', 'end', 'TF', '-log10(pval)', 'strand']
 TFs = np.unique(TF_positions_df['TF'].values)
 print('TFs: ', TFs)
@@ -341,19 +346,36 @@ chr_list = list(np.arange(1,1+22))
 
 for i in range(1,1+N):
     print('i: ', i)
-    model_name_gat = '../models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_valid_chr_'+str(i)+','+str(i+10)+'.h5'
+    if organism == 'mouse' and i==9:
+        iv2 = i+10
+        it2 = 1
+    elif organism == 'mouse' and i==10:
+        iv2 = 1
+        it2 = 2
+    else:
+        iv2 = i+10
+        it2 = i+11
+    valid_chr_list = [i, iv2]
+    test_chr_list = [i+1, it2]
+
+    test_chr_str = [str(i) for i in test_chr_list]
+    test_chr_str = ','.join(test_chr_str)
+    valid_chr_str = [str(i) for i in valid_chr_list]
+    valid_chr_str = ','.join(valid_chr_str)
+
+    model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_'+assay_type+'_FDR_'+FDR+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
     model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
     model_gat.trainable = False
     model_gat._name = 'Seq-GraphReh_e2e'
     #model_gat.summary()
 
-    model_name = '../models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_valid_chr_'+str(i)+','+str(i+10)+'.h5'
+    model_name = data_path+'/models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_'+assay_type+'_FDR_'+FDR+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
     model_cnn = tf.keras.models.load_model(model_name)
     model_cnn.trainable = False
     model_cnn._name = 'Seq-CNN_e2e'
     #model_cnn.summary()
 
-    y_gene, y_hat_gene_gat, y_hat_gene_gat_ko_list, y_hat_gene_cnn, y_hat_gene_cnn_ko_list, _, _, gene_names, n_contacts = calculate_loss(1, model_gat, model_cnn, 
+    y_gene, y_hat_gene_gat, y_hat_gene_gat_ko_list, y_hat_gene_cnn, y_hat_gene_cnn_ko_list, _, _, gene_names, n_contacts = calculate_loss(model_gat, model_cnn, 
                         chr_list, cell_line, organism, genome, batch_size, TF_positions_df, TFs)
 
     for k in range(len(TFs)):
@@ -376,8 +398,8 @@ for i in range(1,1+N):
 
 
 for k in range(len(TFs)):
-    df_GraphReg_dict[k].to_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/Seq-GraphReg_TF_KO_'+TFs[k]+'.tsv', sep='\t')
-    df_CNN_dict[k].to_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/Seq-CNN_TF_KO_'+TFs[k]+'.tsv', sep='\t')
+    df_GraphReg_dict[k].to_csv(data_path+'/results/csv/insilico_TF_KO/Seq-GraphReg_TF_KO_'+TFs[k]+'.tsv', sep='\t')
+    df_CNN_dict[k].to_csv(data_path+'/results/csv/insilico_TF_KO/Seq-CNN_TF_KO_'+TFs[k]+'.tsv', sep='\t')
 
 
 ######### load and do DESeq2 analysis #########
@@ -388,14 +410,14 @@ import pandas as pd
 import rpy2
 from diffexpr.py_deseq import py_DESeq2
 
-TF_positions_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
+TF_positions_df = pd.read_csv(data_path+'/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
 TF_positions_df.columns = ['chr', 'start', 'end', 'TF', '-log10(pval)', 'strand']
 TFs = np.unique(TF_positions_df['TF'].values)
 print('TFs: ', TFs)
 TFs = np.delete(TFs,9)
 
 for k in range(len(TFs)):
-    df_GraphReg = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/Seq-GraphReg_TF_KO_'+TFs[k]+'.tsv', sep='\t')
+    df_GraphReg = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/Seq-GraphReg_TF_KO_'+TFs[k]+'.tsv', sep='\t')
     df_GraphReg.columns = ['gene_name', 'True_CAGE', 'n_contact', 'WT_1', 'WT_2', 'KO_1', 'KO_2']
 
     df_GraphReg_deseq = pd.DataFrame(columns=['id', 'A_1', 'A_2', 'B_1', 'B_2'])
@@ -422,10 +444,10 @@ for k in range(len(TFs)):
     res.head()
     res = res[res['pvalue']<=1]
     res = res.sort_values(by=['pvalue']).reset_index(drop=True)
-    res.to_csv('/media/labuser/STORAGE/GraphReg/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_GraphReg.tsv', sep='\t')
+    res.to_csv(data_path+'/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_GraphReg.tsv', sep='\t')
 
 
-    df_CNN = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/Seq-CNN_TF_KO_'+TFs[k]+'.tsv', sep='\t')
+    df_CNN = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/Seq-CNN_TF_KO_'+TFs[k]+'.tsv', sep='\t')
     df_CNN.columns = ['gene_name', 'True_CAGE', 'n_contact', 'WT_1', 'WT_2', 'KO_1', 'KO_2']
 
     df_CNN_deseq = pd.DataFrame(columns=['id', 'A_1', 'A_2', 'B_1', 'B_2'])
@@ -452,11 +474,11 @@ for k in range(len(TFs)):
     res.head()
     res = res[res['pvalue']<=1]
     res = res.sort_values(by=['pvalue']).reset_index(drop=True)
-    res.to_csv('/media/labuser/STORAGE/GraphReg/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_CNN.tsv', sep='\t')
+    res.to_csv(data_path+'/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_CNN.tsv', sep='\t')
 
 
 ######### Compare experimental TF knock out vs in-silico TF knock out of Seq-GraphReg and Seq-CNN #########
-TF_positions_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
+TF_positions_df = pd.read_csv(data_path+'/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
 TF_positions_df.columns = ['chr', 'start', 'end', 'TF', '-log10(pval)', 'strand']
 TFs = np.unique(TF_positions_df['TF'].values)
 TFs = np.delete(TFs,9)
@@ -464,11 +486,11 @@ print('TFs: ', TFs)
 mg = mygene.MyGeneInfo()
 
 for k in range(len(TFs)):
-    df_true = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO.tsv', sep='\t')
-    df_GraphReg_deseq = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_GraphReg.tsv', sep='\t')
-    df_CNN_deseq = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_CNN.tsv', sep='\t')
+    df_true = pd.read_csv(data_path+'/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO.tsv', sep='\t')
+    df_GraphReg_deseq = pd.read_csv(data_path+'/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_GraphReg.tsv', sep='\t')
+    df_CNN_deseq = pd.read_csv(data_path+'/results/csv/CRISPRi_K562_DESeq_results/'+TFs[k]+'_KO_CNN.tsv', sep='\t')
 
-    df_GraphReg = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/Seq-GraphReg_TF_KO_'+TFs[k]+'.tsv', sep='\t')
+    df_GraphReg = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/Seq-GraphReg_TF_KO_'+TFs[k]+'.tsv', sep='\t')
     df_GraphReg.columns = ['gene_name', 'True_CAGE', 'n_contact', 'WT_1', 'WT_2', 'KO_1', 'KO_2']
 
 
@@ -512,11 +534,11 @@ for k in range(len(TFs)):
         df.loc[genes_shared[j], 'log2FoldChange_CNN'] = df_CNN_deseq[df_CNN_deseq['id']==genes_shared[j]]['log2FoldChange'].values[0]
         df.loc[genes_shared[j], 'pvalue_CNN'] = df_CNN_deseq[df_CNN_deseq['id']==genes_shared[j]]['pvalue'].values[0]
 
-    df.to_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_'+TFs[k]+'_all.tsv', sep='\t')
+    df.to_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_'+TFs[k]+'_all.tsv', sep='\t')
 
 
 ######################## plot figures ########################
-TF_positions_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
+TF_positions_df = pd.read_csv(data_path+'/results/fimo/peaks_H3K27ac_K562/TF_positions_unique.bed', sep="\t")
 TF_positions_df.columns = ['chr', 'start', 'end', 'TF', '-log10(pval)', 'strand']
 TFs = np.unique(TF_positions_df['TF'].values)
 TFs = np.delete(TFs,9)
@@ -541,7 +563,7 @@ mat_cnn = []
 p_adj_thr = .05
 df_sns = pd.DataFrame(columns=['auPR','Method', 'TF_KO'])
 for k in range(len(TFs)):
-    df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_'+TFs[k]+'_all.tsv', sep='\t')
+    df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_'+TFs[k]+'_all.tsv', sep='\t')
     _, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
     df['pvalue_true'] = pvals_adjusted
 
@@ -692,11 +714,11 @@ gene_by_tf_matrix_gr = np.zeros([len(pred_genes_gr), len(TF_hm)])
 gene_by_tf_matrix_cnn = np.zeros([len(pred_genes_cnn), len(TF_hm)])
 
 for k in range(len(TF_hm)):
-    df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_'+TF_hm[k]+'_all.tsv', sep='\t')
+    df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_'+TF_hm[k]+'_all.tsv', sep='\t')
     df.index = df['gene_name'].values
     gene_by_tf_matrix_gr[:,k] = df.loc[pred_genes_gr, ['log2FoldChange_true']].values.ravel()
 
-    df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_'+TF_hm[k]+'_all.tsv', sep='\t')
+    df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_'+TF_hm[k]+'_all.tsv', sep='\t')
     df.index = df['gene_name'].values
     gene_by_tf_matrix_cnn[:,k] = df.loc[pred_genes_cnn, ['log2FoldChange_true']].values.ravel()
 
@@ -735,7 +757,7 @@ df_MYC = pd.DataFrame(columns=df.columns)
 df_MYC['TF'] = TFs
 
 for k in range(len(TFs)):
-    df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_'+TFs[k]+'_all.tsv', sep='\t')
+    df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_'+TFs[k]+'_all.tsv', sep='\t')
     _, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
     df['pvalue_true'] = pvals_adjusted
 
@@ -749,20 +771,20 @@ df_MYC_increase = df_MYC[((df_MYC['pvalue_true'] <= p_adj_thr) & (df_MYC['log2Fo
 '''
 # SP1-RAC2
 p_adj_thr = 0.05
-df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_SP1_all.tsv', sep='\t')
+df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_SP1_all.tsv', sep='\t')
 _, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
 df['pvalue_true'] = pvals_adjusted
 
 # NRF1-ANKRD9
 p_adj_thr = 0.05
-df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_NRF1_all.tsv', sep='\t')
+df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_NRF1_all.tsv', sep='\t')
 _, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
 df['pvalue_true'] = pvals_adjusted
 '''
 
 # JUND-TCF3
 p_adj_thr = 0.05
-df = pd.read_csv('/media/labuser/STORAGE/GraphReg/results/csv/insilico_TF_KO/TF_KO_JUND_all.tsv', sep='\t')
+df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_JUND_all.tsv', sep='\t')
 _, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
 df['pvalue_true'] = pvals_adjusted
 

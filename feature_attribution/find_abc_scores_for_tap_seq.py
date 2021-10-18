@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
 
-TAP_seq_enhancer_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/TAP_seq_enhancer.csv')
+data_path = '/media/labuser/STORAGE/GraphReg'   # data path
+
+TAP_seq_enhancer_df = pd.read_csv(data_path+'/data/csv/TAP_seq_enhancer.csv')
 TAP_seq_enhancer_df['ABC.Score'] = 0.0
-ABC_K562_df = pd.read_csv('/media/labuser/STORAGE/GraphReg/data/csv/ABC_preds_chr8_chr11_K562.txt', sep='\t')
+ABC_K562_df = pd.read_csv(data_path+'/data/csv/ABC_preds_chr8_chr11_K562.txt', sep='\t')
 
 for i in range(len(TAP_seq_enhancer_df)):
     print(i)
@@ -17,4 +19,4 @@ for i in range(len(TAP_seq_enhancer_df)):
     if len(ABC_K562_df_sub) >= 1 :
         TAP_seq_enhancer_df.loc[i, 'ABC.Score'] = np.mean(ABC_K562_df_sub['ABC_Score'].values)
 
-TAP_seq_enhancer_df.to_csv('/media/labuser/STORAGE/GraphReg/data/csv/TAP_seq_enhancer_with_abc.csv', sep=",", index=False)
+TAP_seq_enhancer_df.to_csv(data_path+'/data/csv/TAP_seq_enhancer_with_abc.csv', sep=",", index=False)
