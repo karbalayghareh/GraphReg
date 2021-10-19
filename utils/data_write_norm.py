@@ -72,11 +72,11 @@ def main():
 
   organism = 'human'          # human/mouse
   res = '5kb'                 # 5kb/10kb
-  cell_line = 'K562'          # K562/GM12878/hESC/mESC
+  cell_line = 'GM12878'          # K562/GM12878/hESC/mESC
   genome='hg19'               # hg19/hg38/mm10
   model = 'epi'               # seq/epi
-  assay_type = 'HiChIP'        # HiC/HiChIP/MicroC/HiCAR
-  qval = 0.1                    # 0.1/0.01/0.001
+  assay_type = 'HiC'        # HiC/HiChIP/MicroC/HiCAR
+  qval = 0.001                    # 0.1/0.01/0.001
   data_path = '/media/labuser/STORAGE/GraphReg'
 
   if qval == 0.1:
@@ -123,7 +123,7 @@ def main():
 
     seqs_cov_files = [data_path+'/data/'+cell_line+'/seqs_cov_norm/CAGE_cov_'+chr_temp+'.h5',
                       data_path+'/data/'+cell_line+'/seqs_cov_norm/H3K4me3_cov_'+chr_temp+'.h5',
-                      data_path+'/data/'+cell_line+'/seqs_cov_norm/H3K27ac_cov_danwei_'+chr_temp+'.h5',
+                      data_path+'/data/'+cell_line+'/seqs_cov_norm/H3K27ac_cov_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov_norm/H3K4me1_cov_FC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov_norm/H3K27me3_cov_FC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov_norm/CTCF_cov_FC_'+chr_temp+'.h5',

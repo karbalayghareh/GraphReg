@@ -32,6 +32,8 @@ def main():
         default='HiChIP', type='str')
     parser.add_option('-q', dest='qval',
         default=0.1, type='float')
+    parser.add_option('-g', dest='generalizable',
+        default=0, type='int')
 
     (options, args) = parser.parse_args()
     valid_chr_str = options.valid_chr.split(',')
@@ -57,6 +59,7 @@ def main():
     print('data path: ', options.data_path)
     print('3D assay type: ', options.assay_type)
     print('HiCDCPlus FDR: ', options.qval)
+    print('generalizables: ', options.generalizable)
 
     def poisson_loss(y_true, mu_pred):
         nll = tf.reduce_mean(tf.math.lgamma(y_true + 1) + mu_pred - y_true * tf.math.log(mu_pred))
@@ -141,8 +144,11 @@ def main():
         Y_all = np.array([])
         for num, cell_line in enumerate(cell_lines):
             for i in chr_list:
-                #print(' chr :', i)
-                file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                if options.generalizable == 0:
+                    file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                else:
+                    file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+
                 iterator = dataset_iterator(file_name, batch_size)
                 while True:
                     data_exist, X_epi, Y, adj, idx, tss_idx = read_tf_record_1shot(iterator)
@@ -218,12 +224,14 @@ def main():
         #print(len(model_cnn.trainable_variables))
         #keras.utils.plot_model(model, 'GAT.png', show_shapes = True)
 
-
     ########## training ##########
 
     cell_line = options.cell_line
     cell_lines = [cell_line]
-    model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
+    if options.generalizable == 0:
+        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_'+options.assay_type+'_FDR_'+fdr+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
+    else:
+        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-GraphReg_generalizable_'+cell_line+'_'+options.assay_type+'_FDR_'+fdr+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
     
     if options.organism == 'mouse':
         train_chr_list = [c for c in range(1,1+19)]
@@ -253,8 +261,11 @@ def main():
         Y_all = np.array([])
         for num, cell_line in enumerate(cell_lines):
             for i in train_chr_list:
-                #print('train chr:', i)
-                file_name_train = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                if options.generalizable == 0:
+                    file_name_train = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                else:
+                    file_name_train = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+
                 iterator_train = dataset_iterator(file_name_train, batch_size)
                 while True:
                     data_exist, X_epi, Y, adj, idx, tss_idx = read_tf_record_1shot(iterator_train)

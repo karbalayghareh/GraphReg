@@ -39,7 +39,7 @@ load_np = False
 plot_violin = False
 plot_box = False
 plot_scatter = False
-check_effect_of_3D_data_and_fdr = False
+check_effect_of_3D_data_and_fdr = True
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 qval = .1                                       # 0.1, 0.01, 0.001
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
@@ -867,23 +867,7 @@ if prediction == True:
 
 #################### log fold change ####################
 
-if logfold == True:
-    '''
-    df = pd.DataFrame(columns=['chr', 'gene', 'tss', 'CAGE_GM12878', 'CAGE_K562', 'M', 'A', 
-            'n_EP_GM12878', 'n_EP_K562', 'min(n_EP)', 'Pred_E-GR_GM12878', 'Pred_E-GR_K562', 'Pred_E-CNN_GM12878', 'Pred_E-CNN_K562'])
-    y_gene_1_all = np.array([])
-    y_gene_2_all = np.array([])
-    gene_names_all = np.array([])
-    gene_tss_all = np.array([])
-    gene_chr_all = np.array([])
-    n_contacts_1_all = np.array([])
-    n_contacts_2_all = np.array([])
-    y_hat_gene_gat_1_all = np.array([])
-    y_hat_gene_gat_2_all = np.array([])
-    y_hat_gene_cnn_1_all = np.array([])
-    y_hat_gene_cnn_2_all = np.array([])
-    '''
-    
+if logfold == True:    
     cell_line_1 = 'GM12878'
     cell_line_2 = 'K562'
     organism = 'human'
@@ -955,20 +939,6 @@ if logfold == True:
             y_gene_2, y_hat_gene_gat_2, y_hat_gene_cnn_2, _, _, gene_names, gene_tss, gene_chr, n_contacts_2, _, _, _, _ = calculate_loss(model_gat_2, model_cnn_2, 
                     chr_list, valid_chr_list, test_chr_list,  cell_line_2, organism, batch_size, write_bw)
 
-        '''
-        y_gene_1_all = np.append(y_gene_1_all, y_gene_1)
-        y_gene_2_all = np.append(y_gene_2_all, y_gene_2)
-        gene_names_all = np.append(gene_names_all, gene_names)
-        gene_chr_all = np.append(gene_chr_all, gene_chr)
-        gene_tss_all = np.append(gene_tss_all, gene_tss)
-        n_contacts_1_all = np.append(n_contacts_1_all, n_contacts_1)
-        n_contacts_2_all = np.append(n_contacts_2_all, n_contacts_2)
-        y_hat_gene_gat_1_all = np.append(y_hat_gene_gat_1_all, y_hat_gene_gat_1)
-        y_hat_gene_gat_2_all = np.append(y_hat_gene_gat_2_all, y_hat_gene_gat_2)
-        y_hat_gene_cnn_1_all = np.append(y_hat_gene_cnn_1_all, y_hat_gene_cnn_1)
-        y_hat_gene_cnn_2_all = np.append(y_hat_gene_cnn_2_all, y_hat_gene_cnn_2)
-        '''
-
         for j in range(4):
             if j==0:
                 min_expression = 0 
@@ -1005,41 +975,6 @@ if logfold == True:
             R_cnn[i-1,j] = np.corrcoef(log_fc_true, log_fc_cnn)[0,1]
             SP_cnn[i-1,j] = spearmanr(log_fc_true, log_fc_cnn)[0]
             MSE_cnn[i-1,j] = np.mean((log_fc_true-log_fc_cnn)**2)
-
-    ''' 
-    df['chr'] = gene_chr_all
-    df['gene'] = gene_names_all
-    df['tss'] = gene_tss_all.astype(np.int64)
-    df['CAGE_GM12878'] = y_gene_1_all
-    df['CAGE_K562'] = y_gene_2_all
-    df['n_EP_GM12878'] = n_contacts_1_all.astype(np.int64)
-    df['n_EP_K562'] = n_contacts_2_all.astype(np.int64)
-    df['Pred_E-GR_GM12878'] = y_hat_gene_gat_1_all
-    df['Pred_E-GR_K562'] = y_hat_gene_gat_2_all
-    df['Pred_E-CNN_GM12878'] = y_hat_gene_cnn_1_all
-    df['Pred_E-CNN_K562'] = y_hat_gene_cnn_2_all
-    
-    genes = df['gene']
-    genes = np.unique(genes)
-    df_unq = pd.DataFrame(columns=['chr', 'gene', 'tss', 'CAGE_GM12878', 'CAGE_K562', 'M', 'A', 
-      'n_EP_GM12878', 'n_EP_K562', 'min(n_EP)', 'Pred_E-GR_GM12878', 'Pred_E-GR_K562', 'Pred_E-CNN_GM12878', 'Pred_E-CNN_K562'])
-
-    for j in range(len(genes)):
-        cut = df[df['gene']==genes[j]]
-        cut = cut.reset_index(drop=True)
-        df_unq = df_unq.append(cut.iloc[0], ignore_index=True)
-        df_unq.loc[j,'M'] = np.log2((cut.loc[0,'CAGE_GM12878']+1)/(cut.loc[0,'CAGE_K562']+1))
-        df_unq.loc[j,'A'] = .5*np.log2((cut.loc[0,'CAGE_GM12878'])*(cut.loc[0,'CAGE_K562'])+1)
-        df_unq.loc[j,'min(n_EP)'] = np.min([cut.loc[0,'n_EP_GM12878'],cut.loc[0,'n_EP_K562']])
-        df_unq.loc[j,'Pred_E-GR_GM12878'] = np.mean(cut['Pred_E-GR_GM12878'].values)
-        df_unq.loc[j,'Pred_E-GR_K562'] = np.mean(cut['Pred_E-GR_K562'].values)
-        df_unq.loc[j,'Pred_E-CNN_GM12878'] = np.mean(cut['Pred_E-CNN_GM12878'].values)
-        df_unq.loc[j,'Pred_E-CNN_K562'] = np.mean(cut['Pred_E-CNN_K562'].values)
-
-    df_unq = df_unq.sort_values(by='chr',axis=0)
-    df_unq = df_unq.reset_index(drop=True)
-    df_unq.to_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv',sep=',', index=False)
-    '''
 
     print('Mean LogFC R GAT: ', np.mean(R_gat, axis=0), ' +/- ', np.std(R_gat, axis=0), ' std')
     print('Mean LogFC R CNN: ', np.mean(R_cnn, axis=0), ' +/- ', np.std(R_cnn, axis=0), ' std \n')

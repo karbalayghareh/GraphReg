@@ -8,7 +8,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import l2
 from gat_layer import GraphAttention
 import numpy as np
-import pandas as pdf
+import pandas as pd
 import seaborn as sns
 import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
@@ -27,32 +27,11 @@ from matplotlib.colors import LinearSegmentedColormap
 from statannot import add_stat_annotation
 
 ##### Input
-batch_size = 1
-organism = 'human'            # human/mouse
-genome='hg19'                 # hg19/hg38/mm10
-cell_line = 'K562'            # K562/GM12878/mESC/hESC
-write_bw = False              # write the predicted CAGE to bigwig files
-prediction = True
-logfold = False
-load_np = False
-plot_violin = False
-plot_box = False
-plot_scatter = False
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
-qval = .1                                       # 0.1, 0.01, 0.001
-assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
 
-if qval == 0.1:
-    fdr = '1'
-elif qval == 0.01:
-    fdr = '01'
-elif qval == 0.001:
-    fdr = '001'
-
-def log2(x):
-  numerator = tf.math.log(x)
-  denominator = tf.math.log(tf.constant(2.))
-  return numerator / denominator
+def poisson_loss_individual(y_true, mu_pred):
+    nll = tf.math.lgamma(y_true + 1) + mu_pred - y_true * tf.math.log(mu_pred)
+    return nll
 
 def poisson_loss(y_true, mu_pred):
     nll = tf.reduce_mean(tf.math.lgamma(y_true + 1) + mu_pred - y_true * tf.math.log(mu_pred))
@@ -176,7 +155,8 @@ def read_tf_record_1shot(iterator):
         last_batch = 10
     return data_exist, X_epi, Y, adj, idx, tss_idx, pos, last_batch
 
-def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_line_train, cell_line_test, organism, genome, batch_size, write_bw):
+def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_line_train, cell_line_test, 
+                                            assay_type_test, fdr_test, organism, genome, batch_size, write_bw):
     loss_gat_all = np.array([])
     loss_cnn_all = np.array([])
     Y_hat_gat_all = np.array([])
@@ -188,7 +168,10 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
     chr_pos = []
     gene_pos = np.array([])
     gene_names = np.array([])
+    gene_tss = np.array([])
+    gene_chr = np.array([])
     n_contacts = np.array([])
+    n_tss_in_bin = np.array([])
 
     y_bw = np.array([])
     y_pred_gat_bw = np.array([])
@@ -242,20 +225,26 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
         bw_y_pred_cnn.addHeader(chr_length)
         
     for i in chr_list:
-        print(' chr :', i)
-        file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+        print('chr :', i)
+        #file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+        file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'_chr'+str(i)+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
         tss_pos = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
         gene_names_all = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_chr'+str(i)+'.npy', allow_pickle=True)
+        n_tss = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_bins_chr'+str(i)+'.npy', allow_pickle=True)
+
         tss_pos = tss_pos[tss_pos>0]
-        print('tss_pos: ', len(tss_pos))
+        #print('tss_pos: ', len(tss_pos), tss_pos[0:10])
         gene_names_all = gene_names_all[gene_names_all != ""]
-        print('gene_names_all: ', len(gene_names_all), gene_names_all[0:10])
+        #print('gene_names_all: ', len(gene_names_all), gene_names_all[0:10])
+        n_tss = n_tss[n_tss>=1]
+        #print('n_tss: ', len(n_tss), n_tss[0:10])
+
         pos_bw = np.array([])
         y_bw_ = np.array([])
         y_pred_gat_bw_ = np.array([])
         y_pred_cnn_bw_ = np.array([])
-        print(tss_pos.shape[0], tss_pos[0:100])
+        #print(tss_pos.shape[0], tss_pos[0:100])
         while True:
             data_exist, X_epi, Y, adj, idx, tss_idx, pos, last_batch = read_tf_record_1shot(iterator)
 
@@ -327,7 +316,10 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
                         y_hat_gene_gat = np.append(y_hat_gene_gat, y_hat_gat_[idx_tss]) # + y_hat_gat_[idx_tss-50] + y_hat_gat_[idx_tss+50])
                         y_hat_gene_cnn = np.append(y_hat_gene_cnn, y_hat_cnn_[idx_tss]) # + y_hat_cnn_[idx_tss-50] + y_hat_cnn_[idx_tss+50])
                         gene_pos = np.append(gene_pos, 'chr'+str(i)+'_tss_'+str(tss_pos_1[j]))
+                        gene_tss = np.append(gene_tss, tss_pos_1[j])
+                        gene_chr = np.append(gene_chr, 'chr'+str(i))
                         gene_names = np.append(gene_names, gene_names_all[idx_gene]) 
+                        n_tss_in_bin = np.append(n_tss_in_bin, n_tss[idx_gene])
                         n_contacts = np.append(n_contacts, num_contacts[idx_tss])
 
             else:
@@ -366,745 +358,484 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
         bw_y_pred_cnn.close()
 
     print('len of test/valid Y: ', len(y_gene))
-    return y_gene, y_hat_gene_gat, y_hat_gene_cnn, chr_pos, gene_pos, gene_names, n_contacts
+    return y_gene, y_hat_gene_gat, y_hat_gene_cnn, chr_pos, gene_pos, gene_names, gene_tss, gene_chr, n_contacts, n_tss_in_bin
 
 
 ############################################################# load model #############################################################
+
+cell_line_train_list = ['K562', 'K562', 'GM12878', 'GM12878', 'hESC', 'hESC']
+cell_line_test_list = ['GM12878', 'hESC', 'K562', 'hESC', 'GM12878', 'K562']
 batch_size = 1
-organism = 'human'                          # human
-genome='hg38'                               # hg19/hg38
-cell_line_train = 'K562'                    # K562/GM12878
-cell_line_test = 'GM12878'                  # K562/GM12878
-write_bw = False                            # write the predicted CAGE to bigwig files
+organism = 'human'
+write_bw = False
 prediction = True
-logfold = False
-load_np = True
+load_np = False
 plot_violin = False
-plot_box = True
-plot_scatter = True
+plot_box = False
+plot_scatter = False
+check_effect_of_3D_data_and_fdr = True
 
 def set_axis_style(ax, labels, positions_tick):
-        ax.get_xaxis().set_tick_params(direction='out')
-        ax.xaxis.set_ticks_position('bottom')
-        ax.yaxis.set_tick_params(labelsize=15)
-        ax.set_xticks(positions_tick)
-        ax.set_xticklabels(labels, fontsize=20)
+    ax.get_xaxis().set_tick_params(direction='out')
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_tick_params(labelsize=15)
+    ax.set_xticks(positions_tick)
+    ax.set_xticklabels(labels, fontsize=20)
 
 def add_label(violin, labels, label):
     color = violin["bodies"][0].get_facecolor().flatten()
     labels.append((mpatches.Patch(color=color), label))
 
-if prediction == True:
-    valid_loss_gat = np.zeros([10,4])
-    valid_rho_gat = np.zeros([10,4])
-    valid_sp_gat = np.zeros([10,4])
-    valid_loss_cnn = np.zeros([10,4])
-    valid_rho_cnn = np.zeros([10,4])
-    valid_sp_cnn = np.zeros([10,4])
-    for i in range(1,1+10):
-        print('i: ', i)
-        iv2 = i+10
-        it2 = i+11
-        valid_chr_list = [i, iv2]
-        test_chr_list = [i+1, it2]
-        chr_list = test_chr_list.copy()
-        chr_list.sort()
-
-        test_chr_str = [str(i) for i in test_chr_list]
-        test_chr_str = ','.join(test_chr_str)
-        valid_chr_str = [str(i) for i in valid_chr_list]
-        valid_chr_str = ','.join(valid_chr_str)
-
-        if load_np == True:
-            y_gene = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-            y_hat_gene_gat = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-            y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-            n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-        else:
-            model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_generalizable_'+cell_line_train+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
-            model_gat.trainable = False
-            model_gat._name = 'Epi-GraphReg'
-            #model_gat.summary()
-
-            model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_generalizable_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_cnn = tf.keras.models.load_model(model_name)
-            model_cnn.trainable = False
-            model_cnn._name = 'Epi-CNN'
-            #model_cnn.summary()
-
-            y_gene, y_hat_gene_gat, y_hat_gene_cnn, _, _, _, n_contacts = calculate_loss(model_gat, model_cnn, 
-                    chr_list, valid_chr_list, test_chr_list, cell_line_train, cell_line_test, organism, genome, batch_size, write_bw)
-
-            np.save(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', y_gene)
-            np.save(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', y_hat_gene_gat)
-            np.save(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', y_hat_gene_cnn)
-            np.save(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', n_contacts)
-
-        for j in range(4):
-            if j==0:
-                min_expression = 0 
-                min_contact = 0
-            elif j==1:
-                min_expression = 5 
-                min_contact = 0
-            elif j==2:
-                min_expression = 5 
-                min_contact = 1
-            else:
-                min_expression = 5 
-                min_contact = 5
-
-            idx = np.where(np.logical_and(n_contacts >= min_contact, y_gene >= min_expression))[0]
-            y_gene_idx = y_gene[idx]
-            y_hat_gene_gat_idx = y_hat_gene_gat[idx]
-            y_hat_gene_cnn_idx = y_hat_gene_cnn[idx]
-
-            valid_loss_gat[i-1,j] = poisson_loss(y_gene_idx, y_hat_gene_gat_idx).numpy()
-            valid_rho_gat[i-1,j] = np.corrcoef(np.log2(y_gene_idx+1),np.log2(y_hat_gene_gat_idx+1))[0,1]
-            valid_sp_gat[i-1,j] = spearmanr(np.log2(y_gene_idx+1),np.log2(y_hat_gene_gat_idx+1))[0]
-            valid_loss_cnn[i-1,j] = poisson_loss(y_gene_idx, y_hat_gene_cnn_idx).numpy()
-            valid_rho_cnn[i-1,j] = np.corrcoef(np.log2(y_gene_idx+1),np.log2(y_hat_gene_cnn_idx+1))[0,1]
-            valid_sp_cnn[i-1,j] = spearmanr(np.log2(y_gene_idx+1), np.log2(y_hat_gene_cnn_idx+1))[0]
-
-            print('NLL GAT: ', valid_loss_gat, ' rho: ', valid_rho_gat, ' sp: ', valid_sp_gat)
-            print('NLL CNN: ', valid_loss_cnn, ' rho: ', valid_rho_cnn, ' sp: ', valid_sp_cnn)
-
-    print('Mean Loss GAT: ', np.mean(valid_loss_gat, axis=0), ' +/- ', np.std(valid_loss_gat, axis=0), ' std')
-    print('Mean Loss CNN: ', np.mean(valid_loss_cnn, axis=0), ' +/- ', np.std(valid_loss_cnn, axis=0), ' std \n')
-
-    print('Mean R GAT: ', np.mean(valid_rho_gat, axis=0), ' +/- ', np.std(valid_rho_gat, axis=0), ' std')
-    print('Mean R CNN: ', np.mean(valid_rho_cnn, axis=0), ' +/- ', np.std(valid_rho_cnn, axis=0), ' std \n')
-
-    print('Mean SP GAT: ', np.mean(valid_sp_gat, axis=0), ' +/- ', np.std(valid_sp_gat, axis=0), ' std')
-    print('Mean SP CNN: ', np.mean(valid_sp_cnn, axis=0), ' +/- ', np.std(valid_sp_cnn, axis=0), ' std')
-
-    w_loss = np.zeros(4)
-    w_rho = np.zeros(4)
-    w_sp = np.zeros(4)
-    p_loss = np.zeros(4)
-    p_rho = np.zeros(4)
-    p_sp = np.zeros(4)
-    for j in range(4):
-        w_loss[j], p_loss[j] = wilcoxon(valid_loss_gat[:,j], valid_loss_cnn[:,j], alternative='less')
-        w_rho[j], p_rho[j] = wilcoxon(valid_rho_gat[:,j], valid_rho_cnn[:,j], alternative='greater')
-        w_sp[j], p_sp[j] = wilcoxon(valid_sp_gat[:,j], valid_sp_cnn[:,j], alternative='greater')
-
-    print('Wilcoxon Loss: ', w_loss, ' , p_values: ', p_loss)
-    print('Wilcoxon R: ', w_rho, ' , p_values: ', p_rho)
-    print('Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
-
-    ##### plot violin plots #####
-    if plot_violin == True:
-        labels = []
-        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(8, 8))
-
-        ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
-        #ax1.set_title(cell_line_train, fontsize=20)
-        ax1.set_ylabel('R', fontsize=20)
-        positions1 = np.array([1,3,5,7])
-        parts11 = ax1.violinplot(valid_rho_gat, positions=positions1, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts11['bodies']:
-            pc.set_facecolor('orange')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts11[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-        add_label(parts11, labels, "Epi-GraphReg") 
-
-        positions2 = positions1 + .75
-        parts12 = ax1.violinplot(valid_rho_cnn, positions=positions2, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts12['bodies']:
-            pc.set_facecolor('deepskyblue')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts12[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-        add_label(parts12, labels, "Epi-CNN")    
-
-        tick_labels = ['Set A', 'Set B', 'Set C', 'Set D']
-        positions_tick = (positions1 + positions2)/2
-        set_axis_style(ax1, tick_labels, positions_tick)
-
-        ax1.grid(axis='y')
-        ax1.legend(*zip(*labels), loc=1, fontsize=15)
-        ax1.set_ylim((0.4,1))
-
-        for i in range(4):
-            if p_rho[i] <= 0.05:
-                x1, x2 = positions1[i], positions2[i]
-                y, h, col = np.max(np.append(valid_rho_gat[:,i],valid_rho_cnn[:,i])) + .02, .02, 'k'
-                ax1.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
-                ax1.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_rho[i]), ha='center', va='bottom', color=col, fontsize=15)
-
-        ax2.set_ylabel('NLL', fontsize=20)
-        positions1 = np.array([1,3,5,7])
-        parts21 = ax2.violinplot(valid_loss_gat, positions=positions1, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts21['bodies']:
-            pc.set_facecolor('orange')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts21[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-
-        positions2 = positions1 + .75
-        parts22 = ax2.violinplot(valid_loss_cnn, positions=positions2, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts22['bodies']:
-            pc.set_facecolor('deepskyblue')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts22[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-
-        tick_labels = ['Set A', 'Set B', 'Set C', 'Set D']
-        positions_tick = (positions1 + positions2)/2
-        set_axis_style(ax2, tick_labels, positions_tick)
-
-        ax2.grid(axis='y')
-        k = 800
-        ax2.set_ylim((0,k))
-        for i in range(4):
-            if p_loss[i] <= 0.05:
-                x1, x2 = positions1[i], positions2[i]
-                y, h, col = np.max(np.append(valid_loss_gat[:,i],valid_loss_cnn[:,i])) + k/40, k/40, 'k'
-                ax2.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
-                ax2.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_loss[i]), ha='center', va='bottom', color=col, fontsize=15)
-        plt.savefig('../figs/Epi-models/violinplot_'+cell_line_train+'_to_'+cell_line_test+'.png')
-
-
-    ##### plot boxplots (only for C and D gene sets) #####
-    if plot_box == True:
-        df = pd.DataFrame(columns=['R','NLL','Method','Set'])
-        for i in range(10):
-            df = df.append({'R': valid_rho_gat[i,0], 'NLL': valid_loss_gat[i,0], 'Method': 'Epi-GraphReg', 'Set': 'A'}, ignore_index=True)
-            df = df.append({'R': valid_rho_gat[i,1], 'NLL': valid_loss_gat[i,1], 'Method': 'Epi-GraphReg', 'Set': 'B'}, ignore_index=True)
-            df = df.append({'R': valid_rho_gat[i,2], 'NLL': valid_loss_gat[i,2], 'Method': 'Epi-GraphReg', 'Set': 'C'}, ignore_index=True)
-            df = df.append({'R': valid_rho_gat[i,3], 'NLL': valid_loss_gat[i,3], 'Method': 'Epi-GraphReg', 'Set': 'D'}, ignore_index=True)
-
-            df = df.append({'R': valid_rho_cnn[i,0], 'NLL': valid_loss_cnn[i,0], 'Method': 'Epi-CNN', 'Set': 'A'}, ignore_index=True)
-            df = df.append({'R': valid_rho_cnn[i,1], 'NLL': valid_loss_cnn[i,1], 'Method': 'Epi-CNN', 'Set': 'B'}, ignore_index=True)
-            df = df.append({'R': valid_rho_cnn[i,2], 'NLL': valid_loss_cnn[i,2], 'Method': 'Epi-CNN', 'Set': 'C'}, ignore_index=True)
-            df = df.append({'R': valid_rho_cnn[i,3], 'NLL': valid_loss_cnn[i,3], 'Method': 'Epi-CNN', 'Set': 'D'}, ignore_index=True)
-
-        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
-        #ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
-        #ax1.set_title(cell_line_train, fontsize=20)
-        b=sns.boxplot(x='Set', y='R', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['C', 'D'], ax=ax1)
-        add_stat_annotation(ax1, data=df, x='Set', y='R', hue='Method',
-                        box_pairs=[(("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
-                                    (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
-                        test='Wilcoxon', text_format='star', loc='inside', verbose=0, order=['C', 'D'], fontsize='x-large', comparisons_correction=None)
-        ax1.yaxis.set_tick_params(labelsize=20)
-        ax1.xaxis.set_tick_params(labelsize=20)
-        b.set_xlabel("Set",fontsize=20)
-        b.set_ylabel("R",fontsize=20)
-        plt.setp(ax1.get_legend().get_texts(), fontsize='15')
-        plt.setp(ax1.get_legend().get_title(), fontsize='15')
-        #ax1.set_ylim((.4,.75))
-
-        b = sns.boxplot(x='Set', y='NLL', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['C', 'D'], ax=ax2)
-        add_stat_annotation(ax2, data=df, x='Set', y='NLL', hue='Method',
-                        box_pairs=[(("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
-                                    (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
-                        test='Wilcoxon', text_format='star', loc='inside', verbose=2, order=['C', 'D'], fontsize='x-large', comparisons_correction=None)
-
-        ax2.yaxis.set_tick_params(labelsize=20)
-        ax2.xaxis.set_tick_params(labelsize=20)
-        b.set_xlabel("Set",fontsize=20)
-        b.set_ylabel("NLL",fontsize=20)
-        plt.setp(ax2.get_legend().get_texts(), fontsize='15')
-        plt.setp(ax2.get_legend().get_title(), fontsize='15')
-        ax2.set_ylim((250,550))
-
-        #fig.tight_layout()
-        fig.suptitle(cell_line_train, fontsize=25)
-        #fig.suptitle(cell_line_train+' to '+cell_line_test, fontsize=25)
-        fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Epi-models/boxplot_'+cell_line_train+'_to_'+cell_line_test+'_CD.png')
-
-        
-        ##### plot boxplots (all gene sets) #####
-        df = pd.DataFrame(columns=['R','NLL','Method','Set'])
-        for i in range(10):
-            df = df.append({'R': valid_rho_gat[i,0], 'NLL': valid_loss_gat[i,0], 'Method': 'Epi-GraphReg', 'Set': 'A'}, ignore_index=True)
-            df = df.append({'R': valid_rho_gat[i,1], 'NLL': valid_loss_gat[i,1], 'Method': 'Epi-GraphReg', 'Set': 'B'}, ignore_index=True)
-            df = df.append({'R': valid_rho_gat[i,2], 'NLL': valid_loss_gat[i,2], 'Method': 'Epi-GraphReg', 'Set': 'C'}, ignore_index=True)
-            df = df.append({'R': valid_rho_gat[i,3], 'NLL': valid_loss_gat[i,3], 'Method': 'Epi-GraphReg', 'Set': 'D'}, ignore_index=True)
-
-            df = df.append({'R': valid_rho_cnn[i,0], 'NLL': valid_loss_cnn[i,0], 'Method': 'Epi-CNN', 'Set': 'A'}, ignore_index=True)
-            df = df.append({'R': valid_rho_cnn[i,1], 'NLL': valid_loss_cnn[i,1], 'Method': 'Epi-CNN', 'Set': 'B'}, ignore_index=True)
-            df = df.append({'R': valid_rho_cnn[i,2], 'NLL': valid_loss_cnn[i,2], 'Method': 'Epi-CNN', 'Set': 'C'}, ignore_index=True)
-            df = df.append({'R': valid_rho_cnn[i,3], 'NLL': valid_loss_cnn[i,3], 'Method': 'Epi-CNN', 'Set': 'D'}, ignore_index=True)
-
-        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
-        #ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
-        #ax1.set_title(cell_line_train, fontsize=20)
-        b=sns.boxplot(x='Set', y='R', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'B', 'C', 'D'], ax=ax1)
-        add_stat_annotation(ax1, data=df, x='Set', y='R', hue='Method',
-                        box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
-                                    (("B", "Epi-GraphReg"), ("B", "Epi-CNN")),
-                                    (("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
-                                    (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
-                        test='Wilcoxon', text_format='star', loc='inside', verbose=0, order=['A', 'B', 'C', 'D'], fontsize='x-large', comparisons_correction=None)
-        ax1.yaxis.set_tick_params(labelsize=20)
-        ax1.xaxis.set_tick_params(labelsize=20)
-        b.set_xlabel("Set",fontsize=20)
-        b.set_ylabel("R",fontsize=20)
-        plt.setp(ax1.get_legend().get_texts(), fontsize='15')
-        plt.setp(ax1.get_legend().get_title(), fontsize='15')
-        #ax1.set_ylim((.4,.75))
-
-        b = sns.boxplot(x='Set', y='NLL', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'B', 'C', 'D'], ax=ax2)
-        add_stat_annotation(ax2, data=df, x='Set', y='NLL', hue='Method',
-                        box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
-                                    (("B", "Epi-GraphReg"), ("B", "Epi-CNN")),
-                                    (("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
-                                    (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
-                        test='Wilcoxon', text_format='star', loc='inside', verbose=2, order=['A', 'B', 'C', 'D'], fontsize='x-large', comparisons_correction=None)
-
-        ax2.yaxis.set_tick_params(labelsize=20)
-        ax2.xaxis.set_tick_params(labelsize=20)
-        b.set_xlabel("Set",fontsize=20)
-        b.set_ylabel("NLL",fontsize=20)
-        plt.setp(ax2.get_legend().get_texts(), fontsize='15')
-        plt.setp(ax2.get_legend().get_title(), fontsize='15')
-        #ax2.set_ylim((250,900))
-
-        #fig.tight_layout()
-        #fig.suptitle(cell_line_train, fontsize=25)
-        fig.suptitle(cell_line_train+' to '+cell_line_test, fontsize=25)
-        fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Epi-models/boxplot_'+cell_line_train+'_to_'+cell_line_test+'_all.png')
-
-
-    ##### scatter plots #####
-    if plot_scatter == True:
-        for i in range(1,1+10):
-            y_gene = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-            y_hat_gene_gat = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-            y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-            n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
-            idx_0 = np.where(n_contacts==0)[0]
-            idx_1 = np.where(n_contacts>=1)[0]
-            n_contacts_idx_1 = n_contacts[idx_1]
-            valid_loss_gat_n0 = poisson_loss(y_gene[idx_0], y_hat_gene_gat[idx_0]).numpy()
-            valid_rho_gat_n0 = np.corrcoef(np.log2(y_gene[idx_0]+1),np.log2(y_hat_gene_gat[idx_0]+1))[0,1]
-            valid_loss_gat_n1 = poisson_loss(y_gene[idx_1], y_hat_gene_gat[idx_1]).numpy()
-            valid_rho_gat_n1 = np.corrcoef(np.log2(y_gene[idx_1]+1),np.log2(y_hat_gene_gat[idx_1]+1))[0,1]
-
-            valid_loss_cnn_n0 = poisson_loss(y_gene[idx_0], y_hat_gene_cnn[idx_0]).numpy()
-            valid_rho_cnn_n0 = np.corrcoef(np.log2(y_gene[idx_0]+1),np.log2(y_hat_gene_cnn[idx_0]+1))[0,1]
-            valid_loss_cnn_n1 = poisson_loss(y_gene[idx_1], y_hat_gene_cnn[idx_1]).numpy()
-            valid_rho_cnn_n1 = np.corrcoef(np.log2(y_gene[idx_1]+1),np.log2(y_hat_gene_cnn[idx_1]+1))[0,1]
-
-            plt.figure(figsize=(8,7))
-            cm = plt.cm.get_cmap('viridis_r')
-            idx=np.argsort(n_contacts_idx_1)
-            sc = plt.scatter(np.log2(y_gene[idx]+1),np.log2(y_hat_gene_gat[idx]+1), c=np.log2(n_contacts_idx_1[idx]+1), s=100, cmap=cm, alpha=.7, edgecolors='')
-            plt.xlim((-.5,13.5))
-            plt.ylim((-.5,13.5))
-            #plt.title('Epi-GraphReg, '+cell_line_train+' to '+cell_line_test, fontsize=20)
-            plt.title('Epi-GraphReg, '+cell_line_train, fontsize=20)
-            plt.xlabel("log2 (true + 1)", fontsize=20)
-            plt.ylabel("log2 (pred + 1)", fontsize=20)
-            plt.tick_params(axis='x', labelsize=15)
-            plt.tick_params(axis='y', labelsize=15)
-            plt.grid(alpha=.5)
-            props = dict(boxstyle='round', facecolor='white', alpha=1)
-            #plt.text(0,15, 'n=0: R= '+"{:5.3f}".format(valid_rho_gat_n0) + ', NLL= '+str(np.float16(valid_loss_gat_n0))+'\n'+
-            #                 'n>0: R= '+"{:5.3f}".format(valid_rho_gat_n1) + ', NLL= '+str(np.float16(valid_loss_gat_n1)), 
-            # horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            plt.text(0,13, 'n>0: R= '+"{:5.3f}".format(valid_rho_gat_n1) + ', NLL= '+str(np.float16(valid_loss_gat_n1)), 
-                horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            cbar = plt.colorbar(sc)
-            cbar.set_label(label='log2 (n + 1)', size=20)
-            cbar.ax.tick_params(labelsize=15)
-            #plt.show()
-            plt.tight_layout()
-            plt.savefig('../figs/Epi-models/scatter_plots/Epi-GraphReg_scatterplot_'+cell_line_train+'_to_'+cell_line_test+'.png')
-
-            plt.figure(figsize=(8,7))
-            cm = plt.cm.get_cmap('viridis_r')
-            idx=np.argsort(n_contacts_idx_1)
-            sc = plt.scatter(np.log2(y_gene[idx]+1),np.log2(y_hat_gene_cnn[idx]+1), c=np.log2(n_contacts_idx_1[idx]+1), s=100, cmap=cm, alpha=.7, edgecolors='')
-            plt.xlim((-.5,13.5))
-            plt.ylim((-.5,13.5))
-            #plt.title('Epi-CNN, '+cell_line_train+' to '+cell_line_test, fontsize=20)
-            plt.title('Epi-CNN, '+cell_line_train, fontsize=20)
-            plt.xlabel("log2 (true + 1)", fontsize=20)
-            plt.ylabel("log2 (pred + 1)", fontsize=20)
-            plt.tick_params(axis='x', labelsize=15)
-            plt.tick_params(axis='y', labelsize=15)
-            plt.grid(alpha=.5)
-            props = dict(boxstyle='round', facecolor='white', alpha=1)
-            #plt.text(0,15, 'n=0: R= '+"{:5.3f}".format(valid_rho_cnn_n0) + ', NLL= '+str(np.float16(valid_loss_cnn_n0))+'\n'+
-            #                 'n>0: R= '+"{:5.3f}".format(valid_rho_cnn_n1) + ', NLL= '+str(np.float16(valid_loss_cnn_n1)),
-            # horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            plt.text(0,13, 'n>0: R= '+"{:5.3f}".format(valid_rho_cnn_n1) + ', NLL= '+str(np.float16(valid_loss_cnn_n1)),
-            horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            cbar = plt.colorbar(sc)
-            cbar.set_label(label='log2 (n + 1)', size=20)
-            cbar.ax.tick_params(labelsize=15)
-            #plt.show()
-            plt.tight_layout()
-            plt.savefig('../figs/Epi-models/scatter_plots/Epi-CNN_scatterplot_'+cell_line_train+'_to_'+cell_line_test+'.png')
-
-
-#################### log fold change ####################
-
-if logfold == True:
-    cell_line_1 = 'GM12878'
-    cell_line_2 = 'K562'
-    organism = 'human'
-    R_gat = np.zeros([10,4])
-    R_cnn = np.zeros([10,4])
-    SP_gat = np.zeros([10,4])
-    SP_cnn = np.zeros([10,4])
-    MSE_gat = np.zeros([10,4])
-    MSE_cnn = np.zeros([10,4])
-    for i in range(1,1+10):
-        print('i: ', i)
-        iv2 = i+10
-        it2 = i+11
-        valid_chr_list = [i, iv2]
-        test_chr_list = [i+1, it2]
-        chr_list = test_chr_list.copy()
-        chr_list.sort()
-
-        test_chr_str = [str(i) for i in test_chr_list]
-        test_chr_str = ','.join(test_chr_str)
-        valid_chr_str = [str(i) for i in valid_chr_list]
-        valid_chr_str = ','.join(valid_chr_str)
-
-        if load_np == True:
-            y_gene_1 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_gat_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-            n_contacts_1 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-        else:
-            model_name_gat = data_path+'/models/'+cell_line_1+'/Epi-GraphReg_generalizable_'+cell_line_1+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_gat_1 = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
-            model_gat_1.trainable = False
-            model_gat_1._name = 'Epi-GraphReg'
-            #model_gat_1.summary()
-
-            model_name = data_path+'/models/'+cell_line_1+'/Epi-CNN_generalizable_'+cell_line_1+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_cnn_1 = tf.keras.models.load_model(model_name)
-            model_cnn_1.trainable = False
-            model_cnn_1._name = 'Epi-CNN'
-            #model_cnn_1.summary()
-
-            y_gene_1, y_hat_gene_gat_1, y_hat_gene_cnn_1, _, _, _, n_contacts_1 = calculate_loss(model_gat_1, model_cnn_1, 
-                    chr_list, valid_chr_list, test_chr_list, cell_line_1, organism, genome, batch_size, write_bw)
-        
-        if load_np == True:
-            y_gene_2 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_gat_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-            n_contacts_2 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-        else:
-            model_name_gat = data_path+'/models/'+cell_line_2+'/Epi-GraphReg_generalizable_'+cell_line_2+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_gat_2 = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
-            model_gat_2.trainable = False
-            model_gat_2._name = 'Epi-GraphReg'
-            #model_gat_2.summary()
-
-            model_name = data_path+'/models/'+cell_line_2+'/Epi-CNN_generalizable_'+cell_line_2+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-            model_cnn_2 = tf.keras.models.load_model(model_name)
-            model_cnn_2.trainable = False
-            model_cnn_2._name = 'Epi-CNN'
-            #model_cnn_2.summary()
-            
-            y_gene_2, y_hat_gene_gat_2, y_hat_gene_cnn_2, _, _, _, n_contacts_2 = calculate_loss(model_gat_2, model_cnn_2, 
-                    chr_list, valid_chr_list, test_chr_list, cell_line_2, organism, batch_size, write_bw)
-        
-        for j in range(4):
-            if j==0:
-                min_expression = 0 
-                min_contact = 0
-            elif j==1:
-                min_expression = 5
-                min_contact = 0
-            elif j==2:
-                min_expression = 5
-                min_contact = 1
-            else:
-                min_expression = 5
-                min_contact = 5
-
-            idx_1 = np.where(np.logical_and(n_contacts_1 >= min_contact, y_gene_1 >= min_expression))[0]
-            idx_2 = np.where(np.logical_and(n_contacts_2 >= min_contact, y_gene_2 >= min_expression))[0]
-            #idx = np.union1d(idx_1, idx_2)
-            idx = np.intersect1d(idx_1, idx_2)
-
-            y_gene_1_idx = y_gene_1[idx]
-            y_gene_2_idx = y_gene_2[idx]
-            y_hat_gene_gat_1_idx = y_hat_gene_gat_1[idx]
-            y_hat_gene_gat_2_idx = y_hat_gene_gat_2[idx]
-            y_hat_gene_cnn_1_idx = y_hat_gene_cnn_1[idx]
-            y_hat_gene_cnn_2_idx = y_hat_gene_cnn_2[idx]
-
-            log_fc_true = np.log2((y_gene_1_idx+1)/(y_gene_2_idx+1))
-            log_fc_gat = np.log2((y_hat_gene_gat_1_idx+1)/(y_hat_gene_gat_2_idx+1))
-            log_fc_cnn = np.log2((y_hat_gene_cnn_1_idx+1)/(y_hat_gene_cnn_2_idx+1))
-
-            R_gat[i-1,j] = np.corrcoef(log_fc_true, log_fc_gat)[0,1]
-            SP_gat[i-1,j] = spearmanr(log_fc_true, log_fc_gat)[0]
-            MSE_gat[i-1,j] = np.mean((log_fc_true-log_fc_gat)**2)
-            R_cnn[i-1,j] = np.corrcoef(log_fc_true, log_fc_cnn)[0,1]
-            SP_cnn[i-1,j] = spearmanr(log_fc_true, log_fc_cnn)[0]
-            MSE_cnn[i-1,j] = np.mean((log_fc_true-log_fc_cnn)**2)
-
-    print('Mean LogFC R GAT: ', np.mean(R_gat, axis=0), ' +/- ', np.std(R_gat, axis=0), ' std')
-    print('Mean LogFC R CNN: ', np.mean(R_cnn, axis=0), ' +/- ', np.std(R_cnn, axis=0), ' std \n')
-
-    print('Mean LogFC MSE GAT: ', np.mean(MSE_gat, axis=0), ' +/- ', np.std(MSE_gat, axis=0), ' std')
-    print('Mean LogFC MSE CNN: ', np.mean(MSE_cnn, axis=0), ' +/- ', np.std(MSE_cnn, axis=0), ' std')
-
-    w_loss = np.zeros(4)
-    w_rho = np.zeros(4)
-    w_sp = np.zeros(4)
-    p_loss = np.zeros(4)
-    p_rho = np.zeros(4)
-    p_sp = np.zeros(4)
-    for j in range(4):
-        w_loss[j], p_loss[j] = wilcoxon(MSE_gat[:,j], MSE_cnn[:,j], alternative='less')
-        w_rho[j], p_rho[j] = wilcoxon(R_gat[:,j], R_cnn[:,j], alternative='greater')
-        w_sp[j], p_sp[j] = wilcoxon(SP_gat[:,j], SP_cnn[:,j], alternative='greater')
-
-    print('LogFC Wilcoxon Loss: ', w_loss, ' , p_values: ', p_loss)
-    print('LogFC Wilcoxon R: ', w_rho, ' , p_values: ', p_rho)
-    print('LogFC Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
-
-    ##### plot violin plots #####
-    if plot_violin == True:
-        labels = []
-        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(8, 8))
-
-        ax1.set_title('LogFC (GM12878/K562)', fontsize=20)
-        ax1.set_ylabel('R', fontsize=20)
-        positions1 = np.array([1,3,5,7])
-        parts11 = ax1.violinplot(R_gat, positions=positions1, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts11['bodies']:
-            pc.set_facecolor('orange')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts11[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-        add_label(parts11, labels, "Epi-GraphReg") 
-
-        positions2 = positions1 + .75
-        parts12 = ax1.violinplot(R_cnn, positions=positions2, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts12['bodies']:
-            pc.set_facecolor('deepskyblue')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts12[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-        add_label(parts12, labels, "Epi-CNN")    
-
-        tick_labels = ['Set A', 'Set BB', 'Set CC', 'Set DD']
-        positions_tick = (positions1 + positions2)/2
-        set_axis_style(ax1, tick_labels, positions_tick)
-
-        ax1.grid(axis='y')
-        ax1.legend(*zip(*labels), loc=2, fontsize=15)
-        ax1.set_ylim((0.2,1))
-
-        for i in range(4):
-            if p_rho[i] <= 0.05:
-                x1, x2 = positions1[i], positions2[i]
-                y, h, col = np.max(np.append(R_gat[:,i],R_cnn[:,i])) + .02, .02, 'k'
-                ax1.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
-                ax1.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_rho[i]), ha='center', va='bottom', color=col, fontsize=15)
-
-        ax2.set_ylabel('MSE', fontsize=20)
-        positions1 = np.array([1,3,5,7])
-        parts21 = ax2.violinplot(MSE_gat, positions=positions1, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts21['bodies']:
-            pc.set_facecolor('orange')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts21[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-
-        positions2 = positions1 + .75
-        parts22 = ax2.violinplot(MSE_cnn, positions=positions2, showmeans = False, showextrema = True, showmedians = True)
-        for pc in parts22['bodies']:
-            pc.set_facecolor('deepskyblue')
-            pc.set_edgecolor('black')
-            pc.set_alpha(1)
-        for partname in ('cbars','cmins','cmaxes','cmedians'):
-            vp = parts22[partname]
-            vp.set_edgecolor('black')
-            vp.set_linewidth(1)
-
-        tick_labels = ['Set A', 'Set BB', 'Set CC', 'Set DD']
-        positions_tick = (positions1 + positions2)/2
-        set_axis_style(ax2, tick_labels, positions_tick)
-
-        ax2.grid(axis='y')
-        k = 4
-        ax2.set_ylim((0,k))
-        for i in range(4):
-            if p_loss[i] <= 0.05:
-                x1, x2 = positions1[i], positions2[i]
-                y, h, col = np.max(np.append(MSE_gat[:,i],MSE_cnn[:,i])) + k/40, k/40, 'k'
-                ax2.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
-                ax2.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_loss[i]), ha='center', va='bottom', color=col, fontsize=15)
-
-        #plt.show()
-        plt.savefig('../figs/Epi-models/violinplot_LogFC_'+cell_line_1+'_'+cell_line_2+'.png')
-
-
-    ##### plot box plots (all gene sets) #####
-    if plot_box == True:
-        df = pd.DataFrame(columns=['R','MSE','Method','Set'])
-        for i in range(10):
-            df = df.append({'R': R_gat[i,0], 'MSE': MSE_gat[i,0], 'Method': 'Epi-GraphReg', 'Set': 'A'}, ignore_index=True)
-            df = df.append({'R': R_gat[i,1], 'MSE': MSE_gat[i,1], 'Method': 'Epi-GraphReg', 'Set': 'BB'}, ignore_index=True)
-            df = df.append({'R': R_gat[i,2], 'MSE': MSE_gat[i,2], 'Method': 'Epi-GraphReg', 'Set': 'CC'}, ignore_index=True)
-            df = df.append({'R': R_gat[i,3], 'MSE': MSE_gat[i,3], 'Method': 'Epi-GraphReg', 'Set': 'DD'}, ignore_index=True)
-
-            df = df.append({'R': R_cnn[i,0], 'MSE': MSE_cnn[i,0], 'Method': 'Epi-CNN', 'Set': 'A'}, ignore_index=True)
-            df = df.append({'R': R_cnn[i,1], 'MSE': MSE_cnn[i,1], 'Method': 'Epi-CNN', 'Set': 'BB'}, ignore_index=True)
-            df = df.append({'R': R_cnn[i,2], 'MSE': MSE_cnn[i,2], 'Method': 'Epi-CNN', 'Set': 'CC'}, ignore_index=True)
-            df = df.append({'R': R_cnn[i,3], 'MSE': MSE_cnn[i,3], 'Method': 'Epi-CNN', 'Set': 'DD'}, ignore_index=True)
-
-        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
-        #ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
-        #ax1.set_title(cell_line_train, fontsize=20)
-        b=sns.boxplot(x='Set', y='R', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'BB', 'CC', 'DD'], ax=ax1)
-        add_stat_annotation(ax1, data=df, x='Set', y='R', hue='Method',
-                        box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
-                                    (("BB", "Epi-GraphReg"), ("BB", "Epi-CNN")),
-                                    (("CC", "Epi-GraphReg"), ("CC", "Epi-CNN")),
-                                    (("DD", "Epi-GraphReg"), ("DD", "Epi-CNN"))],
-                        test='Wilcoxon', text_format='star', loc='inside', verbose=0, order=['A', 'BB', 'CC', 'DD'], fontsize='x-large', comparisons_correction=None)
-        ax1.yaxis.set_tick_params(labelsize=20)
-        ax1.xaxis.set_tick_params(labelsize=20)
-        b.set_xlabel("Set",fontsize=20)
-        b.set_ylabel("R",fontsize=20)
-        plt.setp(ax1.get_legend().get_texts(), fontsize='15')
-        plt.setp(ax1.get_legend().get_title(), fontsize='15')
-        #ax1.set_ylim((.4,.75))
-
-        b = sns.boxplot(x='Set', y='MSE', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'BB', 'CC', 'DD'], ax=ax2)
-        add_stat_annotation(ax2, data=df, x='Set', y='MSE', hue='Method',
-                        box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
-                                    (("BB", "Epi-GraphReg"), ("BB", "Epi-CNN")),
-                                    (("CC", "Epi-GraphReg"), ("CC", "Epi-CNN")),
-                                    (("DD", "Epi-GraphReg"), ("DD", "Epi-CNN"))],
-                        test='Wilcoxon', text_format='star', loc='inside', verbose=2, order=['A', 'BB', 'CC', 'DD'], fontsize='x-large', comparisons_correction=None)
-
-        ax2.yaxis.set_tick_params(labelsize=20)
-        ax2.xaxis.set_tick_params(labelsize=20)
-        b.set_xlabel("Set",fontsize=20)
-        b.set_ylabel("MSE",fontsize=20)
-        plt.setp(ax2.get_legend().get_texts(), fontsize='15')
-        plt.setp(ax2.get_legend().get_title(), fontsize='15')
-        #ax2.set_ylim((1.15,3.4))
-
-        #fig.tight_layout()
-        fig.suptitle('LogFC (GM12878/K562)', fontsize=25)
-        fig.tight_layout(rect=[0, 0, 1, .93])
-        plt.savefig('../figs/Epi-models/boxplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_all.png')
-
-    ##### scatter plots #####
-    if plot_scatter == True:
-        for i in range(1,11):
-            y_gene_1 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_gat_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_1 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-            n_contacts_1 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_1+'_to_'+cell_line_1+'_'+str(i)+'.npy')
-
-            y_gene_2 = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_gat_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-            y_hat_gene_cnn_2 = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-            n_contacts_2 = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_2+'_to_'+cell_line_2+'_'+str(i)+'.npy')
-
-            n_contacts = np.minimum(n_contacts_1, n_contacts_2)
-            idx_0 = np.where(n_contacts==0)[0]
-            idx_1 = np.where(n_contacts>0)[0]
-            n_contacts_idx_1 = n_contacts[idx_1]
-
-            #n_contacts_ratio = np.log2((n_contacts_1+1)/(n_contacts_2+1))
-
-            log_fc_true = np.log2((y_gene_1+1)/(y_gene_2+1))
-            log_fc_gat = np.log2((y_hat_gene_gat_1+1)/(y_hat_gene_gat_2+1))
-            log_fc_cnn = np.log2((y_hat_gene_cnn_1+1)/(y_hat_gene_cnn_2+1))
-
-            R_gat_m0 = np.corrcoef(log_fc_true[idx_0], log_fc_gat[idx_0])[0,1]
-            R_gat_m1 = np.corrcoef(log_fc_true[idx_1], log_fc_gat[idx_1])[0,1]
-            MSE_gat_m0 = np.mean((log_fc_true[idx_0]-log_fc_gat[idx_0])**2)
-            MSE_gat_m1 = np.mean((log_fc_true[idx_1]-log_fc_gat[idx_1])**2)
-            R_cnn_m0 = np.corrcoef(log_fc_true[idx_0], log_fc_cnn[idx_0])[0,1]
-            R_cnn_m1 = np.corrcoef(log_fc_true[idx_1], log_fc_cnn[idx_1])[0,1]
-            MSE_cnn_m0 = np.mean((log_fc_true[idx_0]-log_fc_cnn[idx_0])**2)
-            MSE_cnn_m1 = np.mean((log_fc_true[idx_1]-log_fc_cnn[idx_1])**2)
-
-            plt.figure(figsize=(8,7))
-            cm = plt.cm.get_cmap('viridis_r')
-            idx=np.argsort(n_contacts_idx_1)
-            sc = plt.scatter(log_fc_true[idx], log_fc_gat[idx], c=np.log2(n_contacts_idx_1[idx]+1), s=100, cmap=cm, alpha=.7, edgecolors='')
-            plt.xlim((-11,11))
-            plt.ylim((-11,11))
-            plt.title('Epi-GraphReg, '+cell_line_1+'/'+cell_line_2, fontsize=20)
-            plt.xlabel("log2 (FC true)", fontsize=20)
-            plt.ylabel("log2 (FC pred)", fontsize=20)
-            plt.tick_params(axis='x', labelsize=15)
-            plt.tick_params(axis='y', labelsize=15)
-            plt.grid(alpha=.5)
-            props = dict(boxstyle='round', facecolor='white', alpha=1)
-            #plt.text(-14,14, 'm=0: R= '+"{:5.3f}".format(R_gat_m0) + ', MSE= '+str(np.float16(MSE_gat_m0))+'\n'+
-            #                 'm>0: R= '+"{:5.3f}".format(R_gat_m1) + ', MSE= '+str(np.float16(MSE_gat_m1)), 
-            # horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            plt.text(-10,10, 'm>0: R= '+"{:5.3f}".format(R_gat_m1) + ', MSE= '+str(np.float16(MSE_gat_m1)), 
-            horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            cbar = plt.colorbar(sc)
-            cbar.set_label(label='log2 (m + 1)', size=20)
-            cbar.ax.tick_params(labelsize=15)
-            plt.clim(1,7)
-            plt.tight_layout()
-            #plt.show()
-            plt.savefig('../figs/Epi-models/Epi-GraphReg_scatterplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_model_'+str(i)+'.png')
-
-            plt.figure(figsize=(8,7))
-            cm = plt.cm.get_cmap('viridis_r')
-            idx=np.argsort(n_contacts_idx_1)
-            sc = plt.scatter(log_fc_true[idx], log_fc_cnn[idx], c=np.log2(n_contacts_idx_1[idx]+1), s=100, cmap=cm, alpha=.7, edgecolors='')
-            plt.xlim((-11,11))
-            plt.ylim((-11,11))
-            plt.title('Epi-CNN, '+cell_line_1+'/'+cell_line_2, fontsize=20)
-            plt.xlabel("log2 (FC true)", fontsize=20)
-            plt.ylabel("log2 (FC pred)", fontsize=20)
-            plt.tick_params(axis='x', labelsize=15)
-            plt.tick_params(axis='y', labelsize=15)
-            plt.grid(alpha=.5)
-            props = dict(boxstyle='round', facecolor='white', alpha=1)
-            #plt.text(-14,14, 'm=0: R= '+"{:5.3f}".format(R_cnn_m0) + ', MSE= '+str(np.float16(MSE_cnn_m0))+'\n'+
-            #                 'm>0: R= '+"{:5.3f}".format(R_cnn_m1) + ', MSE= '+str(np.float16(MSE_cnn_m1)),
-            # horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            plt.text(-10,10, 'm>0: R= '+"{:5.3f}".format(R_cnn_m1) + ', MSE= '+str(np.float16(MSE_cnn_m1)),
-            horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
-            cbar = plt.colorbar(sc)
-            cbar.set_label(label='log2 (m + 1)', size=20)
-            cbar.ax.tick_params(labelsize=15)
-            plt.clim(1,7)
-            #plt.show()
-            plt.tight_layout()
-            plt.savefig('../figs/Epi-models/Epi-CNN_scatterplot_LogFC_'+cell_line_1+'_'+cell_line_2+'_model_'+str(i)+'.png')
+for c in range(4,6):
+    cell_line_train = cell_line_train_list[c]
+    cell_line_test = cell_line_test_list[c]
+    if cell_line_test == 'GM12878' or cell_line_test == 'K562':
+        genome='hg19'
+        assay_type_test_list = ['HiC', 'HiChIP']
+    elif cell_line_test == 'hESC':
+        genome='hg38'
+        assay_type_test_list = ['MicroC', 'HiCAR']
+
+    if cell_line_train == 'GM12878' or cell_line_train == 'K562':
+        assay_type_train_list = ['HiC', 'HiChIP']
+    elif cell_line_train == 'hESC':
+        assay_type_train_list = ['MicroC', 'HiCAR']
+
+    for assay_type_train in assay_type_train_list:
+        for assay_type_test in assay_type_test_list:
+            for fdr_train in ['1', '01', '001']:
+                for fdr_test in ['1', '01', '001']:
+                    print('c: {}, assay_type_train: {}, assay_type_test: {}, fdr_train: {}, fdr_test: {}'.format(c,assay_type_train,assay_type_test,fdr_train,fdr_test))
+                    if prediction == True:
+                        valid_loss_gat = np.zeros([10,4])
+                        valid_rho_gat = np.zeros([10,4])
+                        valid_sp_gat = np.zeros([10,4])
+                        valid_loss_cnn = np.zeros([10,4])
+                        valid_rho_cnn = np.zeros([10,4])
+                        valid_sp_cnn = np.zeros([10,4])
+                        n_gene = np.zeros([10,4])
+                        df_all_predictions = pd.DataFrame(columns=['chr', 'genes', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'true_cage', 'pred_cage_epi_graphreg', 'pred_cage_epi_cnn', 'nll_epi_graphreg', 'nll_epi_cnn', 'delta_nll'])
+
+                        for i in range(1,1+10):
+                            iv2 = i+10
+                            it2 = i+11
+                            valid_chr_list = [i, iv2]
+                            test_chr_list = [i+1, it2]
+                            chr_list = test_chr_list.copy()
+                            chr_list.sort()
+
+                            test_chr_str = [str(i) for i in test_chr_list]
+                            test_chr_str = ','.join(test_chr_str)
+                            valid_chr_str = [str(i) for i in valid_chr_list]
+                            valid_chr_str = ','.join(valid_chr_str)
+
+                            if load_np == True:
+                                y_gene = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                                y_hat_gene_gat = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                                y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                                n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                            else:
+                                #model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_generalizable_'+cell_line_train+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
+                                model_gat.trainable = False
+                                model_gat._name = 'Epi-GraphReg'
+                                #model_gat.summary()
+
+                                #model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_generalizable_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_cnn = tf.keras.models.load_model(model_name)
+                                model_cnn.trainable = False
+                                model_cnn._name = 'Epi-CNN'
+                                #model_cnn.summary()
+
+                                y_gene, y_hat_gene_gat, y_hat_gene_cnn, _, _, gene_names, gene_tss, gene_chr, n_contacts, n_tss_in_bin = calculate_loss(model_gat, model_cnn, 
+                                        chr_list, valid_chr_list, test_chr_list, cell_line_train, cell_line_test, assay_type_test, fdr_test, organism, genome, batch_size, write_bw)
+
+                                np.save(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', y_gene)
+                                np.save(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', y_hat_gene_gat)
+                                np.save(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', y_hat_gene_cnn)
+                                np.save(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy', n_contacts)
+
+                            df_tmp = pd.DataFrame(columns=['chr', 'genes', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'true_cage', 'pred_cage_epi_graphreg', 'pred_cage_epi_cnn', 'nll_epi_graphreg', 'nll_epi_cnn', 'delta_nll'])
+                            df_tmp['chr'] = gene_chr
+                            df_tmp['genes'] = gene_names
+                            df_tmp['n_tss'] = n_tss_in_bin.astype(np.int64)
+                            df_tmp['tss'] = gene_tss.astype(np.int64)
+                            df_tmp['tss_distance_from_center'] = np.abs(np.mod(gene_tss, 5000) - 2500).astype(np.int64)
+                            df_tmp['n_contact'] = n_contacts.astype(np.int64)
+                            df_tmp['true_cage'] = y_gene
+                            df_tmp['pred_cage_epi_graphreg'] = y_hat_gene_gat
+                            df_tmp['pred_cage_epi_cnn'] = y_hat_gene_cnn
+                            df_tmp['nll_epi_graphreg'] = poisson_loss_individual(y_gene, y_hat_gene_gat).numpy()
+                            df_tmp['nll_epi_cnn'] = poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy()
+                            df_tmp['delta_nll'] = poisson_loss_individual(y_gene, y_hat_gene_cnn).numpy() - poisson_loss_individual(y_gene, y_hat_gene_gat).numpy()    # if delta_nll > 0 then GraphReg prediction is better than CNN
+
+                            df_all_predictions = df_all_predictions.append(df_tmp).reset_index(drop=True)
+
+                            for j in range(4):
+                                if j==0:
+                                    min_expression = 0 
+                                    min_contact = 0
+                                elif j==1:
+                                    min_expression = 5 
+                                    min_contact = 0
+                                elif j==2:
+                                    min_expression = 5 
+                                    min_contact = 1
+                                else:
+                                    min_expression = 5 
+                                    min_contact = 5
+
+                                idx = np.where(np.logical_and(n_contacts >= min_contact, y_gene >= min_expression))[0]
+                                y_gene_idx = y_gene[idx]
+                                y_hat_gene_gat_idx = y_hat_gene_gat[idx]
+                                y_hat_gene_cnn_idx = y_hat_gene_cnn[idx]
+
+                                valid_loss_gat[i-1,j] = poisson_loss(y_gene_idx, y_hat_gene_gat_idx).numpy()
+                                valid_rho_gat[i-1,j] = np.corrcoef(np.log2(y_gene_idx+1),np.log2(y_hat_gene_gat_idx+1))[0,1]
+                                valid_sp_gat[i-1,j] = spearmanr(np.log2(y_gene_idx+1),np.log2(y_hat_gene_gat_idx+1))[0]
+                                valid_loss_cnn[i-1,j] = poisson_loss(y_gene_idx, y_hat_gene_cnn_idx).numpy()
+                                valid_rho_cnn[i-1,j] = np.corrcoef(np.log2(y_gene_idx+1),np.log2(y_hat_gene_cnn_idx+1))[0,1]
+                                valid_sp_cnn[i-1,j] = spearmanr(np.log2(y_gene_idx+1), np.log2(y_hat_gene_cnn_idx+1))[0]
+
+                                n_gene[i-1,j] = len(y_gene_idx)
+
+                                #print('NLL GAT: ', valid_loss_gat, ' rho: ', valid_rho_gat, ' sp: ', valid_sp_gat)
+                                #print('NLL CNN: ', valid_loss_cnn, ' rho: ', valid_rho_cnn, ' sp: ', valid_sp_cnn)
+
+                        #print('Mean Loss GAT: ', np.mean(valid_loss_gat, axis=0), ' +/- ', np.std(valid_loss_gat, axis=0), ' std')
+                        #print('Mean Loss CNN: ', np.mean(valid_loss_cnn, axis=0), ' +/- ', np.std(valid_loss_cnn, axis=0), ' std \n')
+
+                        #print('Mean R GAT: ', np.mean(valid_rho_gat, axis=0), ' +/- ', np.std(valid_rho_gat, axis=0), ' std')
+                        #print('Mean R CNN: ', np.mean(valid_rho_cnn, axis=0), ' +/- ', np.std(valid_rho_cnn, axis=0), ' std \n')
+
+                        #print('Mean SP GAT: ', np.mean(valid_sp_gat, axis=0), ' +/- ', np.std(valid_sp_gat, axis=0), ' std')
+                        #print('Mean SP CNN: ', np.mean(valid_sp_cnn, axis=0), ' +/- ', np.std(valid_sp_cnn, axis=0), ' std')
+
+                        w_loss = np.zeros(4)
+                        w_rho = np.zeros(4)
+                        w_sp = np.zeros(4)
+                        p_loss = np.zeros(4)
+                        p_rho = np.zeros(4)
+                        p_sp = np.zeros(4)
+                        for j in range(4):
+                            w_loss[j], p_loss[j] = wilcoxon(valid_loss_gat[:,j], valid_loss_cnn[:,j], alternative='less')
+                            w_rho[j], p_rho[j] = wilcoxon(valid_rho_gat[:,j], valid_rho_cnn[:,j], alternative='greater')
+                            w_sp[j], p_sp[j] = wilcoxon(valid_sp_gat[:,j], valid_sp_cnn[:,j], alternative='greater')
+
+                        #print('Wilcoxon Loss: ', w_loss, ' , p_values: ', p_loss)
+                        #print('Wilcoxon R: ', w_rho, ' , p_values: ', p_rho)
+                        #print('Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
+
+                        # write the prediction to csv file
+                        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/cage_predictions_epi_models_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)
+
+                        ##### write R and NLL for different 3D graphs and FDRs #####
+                        if check_effect_of_3D_data_and_fdr:
+                            df = pd.DataFrame(columns=['Cell_train', 'Cell_test', 'Method', 'Set', 'valid_chr', 'test_chr', 'n_gene_test', '3D_data_train', '3D_data_test', 'FDR_train', 'FDR_test', 'R','NLL'])
+                            for i in range(1,1+10):
+                                if organism == 'mouse' and i==9:
+                                    iv2 = i+10
+                                    it2 = 1
+                                elif organism == 'mouse' and i==10:
+                                    iv2 = 1
+                                    it2 = 2
+                                else:
+                                    iv2 = i+10
+                                    it2 = i+11
+                                valid_chr_list = [i, iv2]
+                                test_chr_list = [i+1, it2]
+                                chr_list = test_chr_list.copy()
+                                chr_list.sort()
+
+                                test_chr_str = [str(i) for i in test_chr_list]
+                                test_chr_str = ','.join(test_chr_str)
+                                valid_chr_str = [str(i) for i in valid_chr_list]
+                                valid_chr_str = ','.join(valid_chr_str)
+
+                                df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-GraphReg', 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                                                'n_gene_test': n_gene[i-1,0], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test,
+                                                'R': valid_rho_gat[i-1,0], 'NLL': valid_loss_gat[i-1,0]}, ignore_index=True)
+                                df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-GraphReg', 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                                                'n_gene_test': n_gene[i-1,1], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                                'R': valid_rho_gat[i-1,1], 'NLL': valid_loss_gat[i-1,1]}, ignore_index=True)
+                                df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-GraphReg', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                                                'n_gene_test': n_gene[i-1,2], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                                'R': valid_rho_gat[i-1,2], 'NLL': valid_loss_gat[i-1,2]}, ignore_index=True)
+
+                                df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-CNN', 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                                            'n_gene_test': n_gene[i-1,0], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                            'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
+                                df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-CNN', 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                                            'n_gene_test': n_gene[i-1,1], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                            'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
+                                df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-CNN', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                                            'n_gene_test': n_gene[i-1,2], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                            'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
+
+                            df.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/R_NLL_epi_models_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)
+
+
+                        ##### plot violin plots #####
+                        if plot_violin == True:
+                            labels = []
+                            fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(8, 8))
+
+                            ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
+                            #ax1.set_title(cell_line_train, fontsize=20)
+                            ax1.set_ylabel('R', fontsize=20)
+                            positions1 = np.array([1,3,5,7])
+                            parts11 = ax1.violinplot(valid_rho_gat, positions=positions1, showmeans = False, showextrema = True, showmedians = True)
+                            for pc in parts11['bodies']:
+                                pc.set_facecolor('orange')
+                                pc.set_edgecolor('black')
+                                pc.set_alpha(1)
+                            for partname in ('cbars','cmins','cmaxes','cmedians'):
+                                vp = parts11[partname]
+                                vp.set_edgecolor('black')
+                                vp.set_linewidth(1)
+                            add_label(parts11, labels, "Epi-GraphReg") 
+
+                            positions2 = positions1 + .75
+                            parts12 = ax1.violinplot(valid_rho_cnn, positions=positions2, showmeans = False, showextrema = True, showmedians = True)
+                            for pc in parts12['bodies']:
+                                pc.set_facecolor('deepskyblue')
+                                pc.set_edgecolor('black')
+                                pc.set_alpha(1)
+                            for partname in ('cbars','cmins','cmaxes','cmedians'):
+                                vp = parts12[partname]
+                                vp.set_edgecolor('black')
+                                vp.set_linewidth(1)
+                            add_label(parts12, labels, "Epi-CNN")    
+
+                            tick_labels = ['Set A', 'Set B', 'Set C', 'Set D']
+                            positions_tick = (positions1 + positions2)/2
+                            set_axis_style(ax1, tick_labels, positions_tick)
+
+                            ax1.grid(axis='y')
+                            ax1.legend(*zip(*labels), loc=1, fontsize=15)
+                            ax1.set_ylim((0.4,1))
+
+                            for i in range(4):
+                                if p_rho[i] <= 0.05:
+                                    x1, x2 = positions1[i], positions2[i]
+                                    y, h, col = np.max(np.append(valid_rho_gat[:,i],valid_rho_cnn[:,i])) + .02, .02, 'k'
+                                    ax1.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
+                                    ax1.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_rho[i]), ha='center', va='bottom', color=col, fontsize=15)
+
+                            ax2.set_ylabel('NLL', fontsize=20)
+                            positions1 = np.array([1,3,5,7])
+                            parts21 = ax2.violinplot(valid_loss_gat, positions=positions1, showmeans = False, showextrema = True, showmedians = True)
+                            for pc in parts21['bodies']:
+                                pc.set_facecolor('orange')
+                                pc.set_edgecolor('black')
+                                pc.set_alpha(1)
+                            for partname in ('cbars','cmins','cmaxes','cmedians'):
+                                vp = parts21[partname]
+                                vp.set_edgecolor('black')
+                                vp.set_linewidth(1)
+
+                            positions2 = positions1 + .75
+                            parts22 = ax2.violinplot(valid_loss_cnn, positions=positions2, showmeans = False, showextrema = True, showmedians = True)
+                            for pc in parts22['bodies']:
+                                pc.set_facecolor('deepskyblue')
+                                pc.set_edgecolor('black')
+                                pc.set_alpha(1)
+                            for partname in ('cbars','cmins','cmaxes','cmedians'):
+                                vp = parts22[partname]
+                                vp.set_edgecolor('black')
+                                vp.set_linewidth(1)
+
+                            tick_labels = ['Set A', 'Set B', 'Set C', 'Set D']
+                            positions_tick = (positions1 + positions2)/2
+                            set_axis_style(ax2, tick_labels, positions_tick)
+
+                            ax2.grid(axis='y')
+                            k = 800
+                            ax2.set_ylim((0,k))
+                            for i in range(4):
+                                if p_loss[i] <= 0.05:
+                                    x1, x2 = positions1[i], positions2[i]
+                                    y, h, col = np.max(np.append(valid_loss_gat[:,i],valid_loss_cnn[:,i])) + k/40, k/40, 'k'
+                                    ax2.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
+                                    ax2.text((x1+x2)*.5, y+h, "p="+"{:4.2e}".format(p_loss[i]), ha='center', va='bottom', color=col, fontsize=15)
+                            plt.savefig('../figs/Epi-models/violinplot_'+cell_line_train+'_to_'+cell_line_test+'.png')
+
+
+                        ##### plot boxplots (only for C and D gene sets) #####
+                        if plot_box == True:
+                            df = pd.DataFrame(columns=['R','NLL','Method','Set'])
+                            for i in range(10):
+                                df = df.append({'R': valid_rho_gat[i,0], 'NLL': valid_loss_gat[i,0], 'Method': 'Epi-GraphReg', 'Set': 'A'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_gat[i,1], 'NLL': valid_loss_gat[i,1], 'Method': 'Epi-GraphReg', 'Set': 'B'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_gat[i,2], 'NLL': valid_loss_gat[i,2], 'Method': 'Epi-GraphReg', 'Set': 'C'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_gat[i,3], 'NLL': valid_loss_gat[i,3], 'Method': 'Epi-GraphReg', 'Set': 'D'}, ignore_index=True)
+
+                                df = df.append({'R': valid_rho_cnn[i,0], 'NLL': valid_loss_cnn[i,0], 'Method': 'Epi-CNN', 'Set': 'A'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_cnn[i,1], 'NLL': valid_loss_cnn[i,1], 'Method': 'Epi-CNN', 'Set': 'B'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_cnn[i,2], 'NLL': valid_loss_cnn[i,2], 'Method': 'Epi-CNN', 'Set': 'C'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_cnn[i,3], 'NLL': valid_loss_cnn[i,3], 'Method': 'Epi-CNN', 'Set': 'D'}, ignore_index=True)
+
+                            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
+                            #ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
+                            #ax1.set_title(cell_line_train, fontsize=20)
+                            b=sns.boxplot(x='Set', y='R', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['C', 'D'], ax=ax1)
+                            add_stat_annotation(ax1, data=df, x='Set', y='R', hue='Method',
+                                            box_pairs=[(("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
+                                                        (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
+                                            test='Wilcoxon', text_format='star', loc='inside', verbose=0, order=['C', 'D'], fontsize='x-large', comparisons_correction=None)
+                            ax1.yaxis.set_tick_params(labelsize=20)
+                            ax1.xaxis.set_tick_params(labelsize=20)
+                            b.set_xlabel("Set",fontsize=20)
+                            b.set_ylabel("R",fontsize=20)
+                            plt.setp(ax1.get_legend().get_texts(), fontsize='15')
+                            plt.setp(ax1.get_legend().get_title(), fontsize='15')
+                            #ax1.set_ylim((.4,.75))
+
+                            b = sns.boxplot(x='Set', y='NLL', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['C', 'D'], ax=ax2)
+                            add_stat_annotation(ax2, data=df, x='Set', y='NLL', hue='Method',
+                                            box_pairs=[(("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
+                                                        (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
+                                            test='Wilcoxon', text_format='star', loc='inside', verbose=2, order=['C', 'D'], fontsize='x-large', comparisons_correction=None)
+
+                            ax2.yaxis.set_tick_params(labelsize=20)
+                            ax2.xaxis.set_tick_params(labelsize=20)
+                            b.set_xlabel("Set",fontsize=20)
+                            b.set_ylabel("NLL",fontsize=20)
+                            plt.setp(ax2.get_legend().get_texts(), fontsize='15')
+                            plt.setp(ax2.get_legend().get_title(), fontsize='15')
+                            ax2.set_ylim((250,550))
+
+                            #fig.tight_layout()
+                            fig.suptitle(cell_line_train, fontsize=25)
+                            #fig.suptitle(cell_line_train+' to '+cell_line_test, fontsize=25)
+                            fig.tight_layout(rect=[0, 0, 1, .93])
+                            plt.savefig('../figs/Epi-models/boxplot_'+cell_line_train+'_to_'+cell_line_test+'_CD.png')
+
+                            
+                            ##### plot boxplots (all gene sets) #####
+                            df = pd.DataFrame(columns=['R','NLL','Method','Set'])
+                            for i in range(10):
+                                df = df.append({'R': valid_rho_gat[i,0], 'NLL': valid_loss_gat[i,0], 'Method': 'Epi-GraphReg', 'Set': 'A'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_gat[i,1], 'NLL': valid_loss_gat[i,1], 'Method': 'Epi-GraphReg', 'Set': 'B'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_gat[i,2], 'NLL': valid_loss_gat[i,2], 'Method': 'Epi-GraphReg', 'Set': 'C'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_gat[i,3], 'NLL': valid_loss_gat[i,3], 'Method': 'Epi-GraphReg', 'Set': 'D'}, ignore_index=True)
+
+                                df = df.append({'R': valid_rho_cnn[i,0], 'NLL': valid_loss_cnn[i,0], 'Method': 'Epi-CNN', 'Set': 'A'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_cnn[i,1], 'NLL': valid_loss_cnn[i,1], 'Method': 'Epi-CNN', 'Set': 'B'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_cnn[i,2], 'NLL': valid_loss_cnn[i,2], 'Method': 'Epi-CNN', 'Set': 'C'}, ignore_index=True)
+                                df = df.append({'R': valid_rho_cnn[i,3], 'NLL': valid_loss_cnn[i,3], 'Method': 'Epi-CNN', 'Set': 'D'}, ignore_index=True)
+
+                            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(14, 7))
+                            #ax1.set_title(cell_line_train+' to '+cell_line_test, fontsize=20)
+                            #ax1.set_title(cell_line_train, fontsize=20)
+                            b=sns.boxplot(x='Set', y='R', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'B', 'C', 'D'], ax=ax1)
+                            add_stat_annotation(ax1, data=df, x='Set', y='R', hue='Method',
+                                            box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
+                                                        (("B", "Epi-GraphReg"), ("B", "Epi-CNN")),
+                                                        (("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
+                                                        (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
+                                            test='Wilcoxon', text_format='star', loc='inside', verbose=0, order=['A', 'B', 'C', 'D'], fontsize='x-large', comparisons_correction=None)
+                            ax1.yaxis.set_tick_params(labelsize=20)
+                            ax1.xaxis.set_tick_params(labelsize=20)
+                            b.set_xlabel("Set",fontsize=20)
+                            b.set_ylabel("R",fontsize=20)
+                            plt.setp(ax1.get_legend().get_texts(), fontsize='15')
+                            plt.setp(ax1.get_legend().get_title(), fontsize='15')
+                            #ax1.set_ylim((.4,.75))
+
+                            b = sns.boxplot(x='Set', y='NLL', hue='Method', data=df, palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"}, order=['A', 'B', 'C', 'D'], ax=ax2)
+                            add_stat_annotation(ax2, data=df, x='Set', y='NLL', hue='Method',
+                                            box_pairs=[(("A", "Epi-GraphReg"), ("A", "Epi-CNN")),
+                                                        (("B", "Epi-GraphReg"), ("B", "Epi-CNN")),
+                                                        (("C", "Epi-GraphReg"), ("C", "Epi-CNN")),
+                                                        (("D", "Epi-GraphReg"), ("D", "Epi-CNN"))],
+                                            test='Wilcoxon', text_format='star', loc='inside', verbose=2, order=['A', 'B', 'C', 'D'], fontsize='x-large', comparisons_correction=None)
+
+                            ax2.yaxis.set_tick_params(labelsize=20)
+                            ax2.xaxis.set_tick_params(labelsize=20)
+                            b.set_xlabel("Set",fontsize=20)
+                            b.set_ylabel("NLL",fontsize=20)
+                            plt.setp(ax2.get_legend().get_texts(), fontsize='15')
+                            plt.setp(ax2.get_legend().get_title(), fontsize='15')
+                            #ax2.set_ylim((250,900))
+
+                            #fig.tight_layout()
+                            #fig.suptitle(cell_line_train, fontsize=25)
+                            fig.suptitle(cell_line_train+' to '+cell_line_test, fontsize=25)
+                            fig.tight_layout(rect=[0, 0, 1, .93])
+                            plt.savefig('../figs/Epi-models/boxplot_'+cell_line_train+'_to_'+cell_line_test+'_all.png')
+
+
+                        ##### scatter plots #####
+                        if plot_scatter == True:
+                            for i in range(1,1+10):
+                                y_gene = np.load(data_path+'/results/numpy/cage_prediction/true_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                                y_hat_gene_gat = np.load(data_path+'/results/numpy/cage_prediction/Epi-GraphReg_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                                y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                                n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
+                                idx_0 = np.where(n_contacts==0)[0]
+                                idx_1 = np.where(n_contacts>=1)[0]
+                                n_contacts_idx_1 = n_contacts[idx_1]
+                                valid_loss_gat_n0 = poisson_loss(y_gene[idx_0], y_hat_gene_gat[idx_0]).numpy()
+                                valid_rho_gat_n0 = np.corrcoef(np.log2(y_gene[idx_0]+1),np.log2(y_hat_gene_gat[idx_0]+1))[0,1]
+                                valid_loss_gat_n1 = poisson_loss(y_gene[idx_1], y_hat_gene_gat[idx_1]).numpy()
+                                valid_rho_gat_n1 = np.corrcoef(np.log2(y_gene[idx_1]+1),np.log2(y_hat_gene_gat[idx_1]+1))[0,1]
+
+                                valid_loss_cnn_n0 = poisson_loss(y_gene[idx_0], y_hat_gene_cnn[idx_0]).numpy()
+                                valid_rho_cnn_n0 = np.corrcoef(np.log2(y_gene[idx_0]+1),np.log2(y_hat_gene_cnn[idx_0]+1))[0,1]
+                                valid_loss_cnn_n1 = poisson_loss(y_gene[idx_1], y_hat_gene_cnn[idx_1]).numpy()
+                                valid_rho_cnn_n1 = np.corrcoef(np.log2(y_gene[idx_1]+1),np.log2(y_hat_gene_cnn[idx_1]+1))[0,1]
+
+                                plt.figure(figsize=(8,7))
+                                cm = plt.cm.get_cmap('viridis_r')
+                                idx=np.argsort(n_contacts_idx_1)
+                                sc = plt.scatter(np.log2(y_gene[idx]+1),np.log2(y_hat_gene_gat[idx]+1), c=np.log2(n_contacts_idx_1[idx]+1), s=100, cmap=cm, alpha=.7, edgecolors='')
+                                plt.xlim((-.5,13.5))
+                                plt.ylim((-.5,13.5))
+                                #plt.title('Epi-GraphReg, '+cell_line_train+' to '+cell_line_test, fontsize=20)
+                                plt.title('Epi-GraphReg, '+cell_line_train, fontsize=20)
+                                plt.xlabel("log2 (true + 1)", fontsize=20)
+                                plt.ylabel("log2 (pred + 1)", fontsize=20)
+                                plt.tick_params(axis='x', labelsize=15)
+                                plt.tick_params(axis='y', labelsize=15)
+                                plt.grid(alpha=.5)
+                                props = dict(boxstyle='round', facecolor='white', alpha=1)
+                                #plt.text(0,15, 'n=0: R= '+"{:5.3f}".format(valid_rho_gat_n0) + ', NLL= '+str(np.float16(valid_loss_gat_n0))+'\n'+
+                                #                 'n>0: R= '+"{:5.3f}".format(valid_rho_gat_n1) + ', NLL= '+str(np.float16(valid_loss_gat_n1)), 
+                                # horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
+                                plt.text(0,13, 'n>0: R= '+"{:5.3f}".format(valid_rho_gat_n1) + ', NLL= '+str(np.float16(valid_loss_gat_n1)), 
+                                    horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
+                                cbar = plt.colorbar(sc)
+                                cbar.set_label(label='log2 (n + 1)', size=20)
+                                cbar.ax.tick_params(labelsize=15)
+                                #plt.show()
+                                plt.tight_layout()
+                                plt.savefig('../figs/Epi-models/scatter_plots/Epi-GraphReg_scatterplot_'+cell_line_train+'_to_'+cell_line_test+'.png')
+
+                                plt.figure(figsize=(8,7))
+                                cm = plt.cm.get_cmap('viridis_r')
+                                idx=np.argsort(n_contacts_idx_1)
+                                sc = plt.scatter(np.log2(y_gene[idx]+1),np.log2(y_hat_gene_cnn[idx]+1), c=np.log2(n_contacts_idx_1[idx]+1), s=100, cmap=cm, alpha=.7, edgecolors='')
+                                plt.xlim((-.5,13.5))
+                                plt.ylim((-.5,13.5))
+                                #plt.title('Epi-CNN, '+cell_line_train+' to '+cell_line_test, fontsize=20)
+                                plt.title('Epi-CNN, '+cell_line_train, fontsize=20)
+                                plt.xlabel("log2 (true + 1)", fontsize=20)
+                                plt.ylabel("log2 (pred + 1)", fontsize=20)
+                                plt.tick_params(axis='x', labelsize=15)
+                                plt.tick_params(axis='y', labelsize=15)
+                                plt.grid(alpha=.5)
+                                props = dict(boxstyle='round', facecolor='white', alpha=1)
+                                #plt.text(0,15, 'n=0: R= '+"{:5.3f}".format(valid_rho_cnn_n0) + ', NLL= '+str(np.float16(valid_loss_cnn_n0))+'\n'+
+                                #                 'n>0: R= '+"{:5.3f}".format(valid_rho_cnn_n1) + ', NLL= '+str(np.float16(valid_loss_cnn_n1)),
+                                # horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
+                                plt.text(0,13, 'n>0: R= '+"{:5.3f}".format(valid_rho_cnn_n1) + ', NLL= '+str(np.float16(valid_loss_cnn_n1)),
+                                horizontalalignment='left', verticalalignment='top', bbox=props, fontsize=20)
+                                cbar = plt.colorbar(sc)
+                                cbar.set_label(label='log2 (n + 1)', size=20)
+                                cbar.ax.tick_params(labelsize=15)
+                                #plt.show()
+                                plt.tight_layout()
+                                plt.savefig('../figs/Epi-models/scatter_plots/Epi-CNN_scatterplot_'+cell_line_train+'_to_'+cell_line_test+'.png')
