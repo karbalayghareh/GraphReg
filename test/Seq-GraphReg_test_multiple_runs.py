@@ -40,6 +40,7 @@ load_np = False
 plot_violin = False
 plot_box = False
 plot_scatter = False
+save_R_NLL_to_csv = True
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 qval = .1                                       # 0.1, 0.01, 0.001
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
@@ -429,7 +430,8 @@ if prediction == True:
     valid_loss_cnn = np.zeros([10,4])
     valid_rho_cnn = np.zeros([10,4])
     valid_sp_cnn = np.zeros([10,4])
-    df_all_predictions = pd.DataFrame(columns=['chr', 'gene', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'true_cage', 'pred_cage_seq_graphreg', 'pred_cage_seq_cnn', 'nll_seq_graphreg', 'nll_seq_cnn', 'delta_nll'])
+    n_gene = np.zeros([10,4])
+    df_all_predictions = pd.DataFrame(columns=['chr', 'genes', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'true_cage', 'pred_cage_seq_graphreg', 'pred_cage_seq_cnn', 'nll_seq_graphreg', 'nll_seq_cnn', 'delta_nll'])
 
     for i in range(1,1+10):
         print('i: ', i)
@@ -504,7 +506,7 @@ if prediction == True:
             np.save(data_path+'/results/numpy/cage_prediction/gene_tss_'+cell_line+'_'+str(i)+'.npy', gene_tss)
             np.save(data_path+'/results/numpy/cage_prediction/gene_chr_'+cell_line+'_'+str(i)+'.npy', gene_chr)
 
-        df_tmp = pd.DataFrame(columns=['chr', 'gene', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'true_cage', 'pred_cage_seq_graphreg', 'pred_cage_seq_cnn', 'nll_seq_graphreg', 'nll_seq_cnn', 'delta_nll'])
+        df_tmp = pd.DataFrame(columns=['chr', 'genes', 'n_tss', 'tss', 'tss_distance_from_center', 'n_contact', 'true_cage', 'pred_cage_seq_graphreg', 'pred_cage_seq_cnn', 'nll_seq_graphreg', 'nll_seq_cnn', 'delta_nll'])
         df_tmp['chr'] = gene_chr
         df_tmp['genes'] = gene_names
         df_tmp['n_tss'] = n_tss_in_bin.astype(np.int64)
@@ -546,6 +548,8 @@ if prediction == True:
             valid_rho_cnn[i-1,j] = np.corrcoef(np.log2(y_gene_idx+1),np.log2(y_hat_gene_cnn_idx+1))[0,1]
             valid_sp_cnn[i-1,j] = spearmanr(np.log2(y_gene_idx+1), np.log2(y_hat_gene_cnn_idx+1))[0]
 
+            n_gene[i-1,j] = len(y_gene_idx)
+
             print('NLL GAT: ', valid_loss_gat, ' rho: ', valid_rho_gat, ' sp: ', valid_sp_gat)
             print('NLL CNN: ', valid_loss_cnn, ' rho: ', valid_rho_cnn, ' sp: ', valid_sp_cnn)
 
@@ -582,6 +586,55 @@ if prediction == True:
         df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_fft_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
     elif fft and (not dilated):
         df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_nodilation_fft_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+
+
+    ##### write R and NLL for different 3D graphs and FDRs #####
+    if save_R_NLL_to_csv:
+        df = pd.DataFrame(columns=['cell', 'Method', 'Train_mode', 'Set', 'valid_chr', 'test_chr', 'n_gene_test', '3D_data', 'FDR', 'R','NLL'])
+        if (not fft) and dilated:
+            train_mode = 'fft_no_dilated_yes'
+        elif (not fft) and (not dilated):
+            train_mode = 'fft_no_dilated_no'
+        elif fft and dilated:
+            train_mode = 'fft_yes_dilated_yes'
+        elif fft and (not dilated):
+            train_mode = 'fft_yes_dilated_no'
+
+        for i in range(1,1+10):
+            if organism == 'mouse' and i==9:
+                iv2 = i+10
+                it2 = 1
+            elif organism == 'mouse' and i==10:
+                iv2 = 1
+                it2 = 2
+            else:
+                iv2 = i+10
+                it2 = i+11
+            valid_chr_list = [i, iv2]
+            test_chr_list = [i+1, it2]
+            chr_list = test_chr_list.copy()
+            chr_list.sort()
+
+            test_chr_str = [str(i) for i in test_chr_list]
+            test_chr_str = ','.join(test_chr_str)
+            valid_chr_str = [str(i) for i in valid_chr_list]
+            valid_chr_str = ','.join(valid_chr_str)
+
+            df = df.append({'cell': cell_line, 'Method': 'Seq-GraphReg', 'Train_mode': train_mode, 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                            'n_gene_test': n_gene[i-1,0], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,0], 'NLL': valid_loss_gat[i-1,0]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Seq-GraphReg', 'Train_mode': train_mode, 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                            'n_gene_test': n_gene[i-1,1], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,1], 'NLL': valid_loss_gat[i-1,1]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Seq-GraphReg', 'Train_mode': train_mode, 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                            'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,2], 'NLL': valid_loss_gat[i-1,2]}, ignore_index=True)
+
+            # df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+            #             'n_gene_test': n_gene[i-1,0], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
+            # df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+            #             'n_gene_test': n_gene[i-1,1], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
+            # df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+            #             'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
+
+        df.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_R_NLL_seq_e2e_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
     ##### plot violin plots #####
     if plot_violin == True:

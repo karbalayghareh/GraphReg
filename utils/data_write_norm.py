@@ -72,10 +72,10 @@ def main():
 
   organism = 'human'          # human/mouse
   res = '5kb'                 # 5kb/10kb
-  cell_line = 'GM12878'          # K562/GM12878/hESC/mESC
+  cell_line = 'K562'          # K562/GM12878/hESC/mESC
   genome='hg19'               # hg19/hg38/mm10
   model = 'epi'               # seq/epi
-  assay_type = 'HiC'        # HiC/HiChIP/MicroC/HiCAR
+  assay_type = 'HiChIP'        # HiC/HiChIP/MicroC/HiCAR
   qval = 0.001                    # 0.1/0.01/0.001
   data_path = '/media/labuser/STORAGE/GraphReg'
 
@@ -98,7 +98,6 @@ def main():
 
   np.random.seed(0)
 
-  q = np.zeros(3)
   for i in chr_list:
     print('chr ', i)
     chr_temp = 'chr'+str(i)
@@ -150,11 +149,6 @@ def main():
       if ti > 0:
         if model == 'epi':
           tmp = np.log2(tmp+1)                  # log normalize
-          if i == 1:
-            q[ti-1] = np.max(tmp.ravel())
-          x_max = q[ti-1]
-          x_min = np.min(tmp.ravel())
-          tmp = (tmp - x_min)/(x_max - x_min)   # in range [0, 1]
 
         print(ti, np.sort(tmp.ravel())[-200:])
         targets[:,:,ti] = tmp
@@ -279,7 +273,6 @@ def main():
 
       print('check symetric: ', check_symmetric(adj))
       print('number of batches: ', n_batch)
-      print('q: ', q)
       
 def _bytes_feature(value):
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))

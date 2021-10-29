@@ -229,9 +229,9 @@ def main():
     cell_line = options.cell_line
     cell_lines = [cell_line]
     if options.generalizable == 0:
-        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-GraphReg_'+cell_line+'_'+options.assay_type+'_FDR_'+fdr+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
+        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
     else:
-        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-GraphReg_generalizable_'+cell_line+'_'+options.assay_type+'_FDR_'+fdr+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
+        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_generalizable_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
     
     if options.organism == 'mouse':
         train_chr_list = [c for c in range(1,1+19)]

@@ -225,8 +225,7 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
         bw_y_pred_cnn.addHeader(chr_length)
         
     for i in chr_list:
-        print('chr :', i)
-        #file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+        #print('chr :', i)
         file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'_chr'+str(i)+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
         tss_pos = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
@@ -363,8 +362,8 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
 
 ############################################################# load model #############################################################
 
-cell_line_train_list = ['K562', 'K562', 'GM12878', 'GM12878', 'hESC', 'hESC']
-cell_line_test_list = ['GM12878', 'hESC', 'K562', 'hESC', 'GM12878', 'K562']
+cell_line_train_list = ['K562', 'GM12878']
+cell_line_test_list = ['GM12878', 'K562']
 batch_size = 1
 organism = 'human'
 write_bw = False
@@ -373,7 +372,7 @@ load_np = False
 plot_violin = False
 plot_box = False
 plot_scatter = False
-check_effect_of_3D_data_and_fdr = True
+save_R_NLL_to_csv = True
 
 def set_axis_style(ax, labels, positions_tick):
     ax.get_xaxis().set_tick_params(direction='out')
@@ -386,7 +385,7 @@ def add_label(violin, labels, label):
     color = violin["bodies"][0].get_facecolor().flatten()
     labels.append((mpatches.Patch(color=color), label))
 
-for c in range(4,6):
+for c in range(2):
     cell_line_train = cell_line_train_list[c]
     cell_line_test = cell_line_test_list[c]
     if cell_line_test == 'GM12878' or cell_line_test == 'K562':
@@ -435,15 +434,13 @@ for c in range(4,6):
                                 y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
                                 n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
                             else:
-                                #model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_generalizable_'+cell_line_train+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-                                model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_generalizable_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                 model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
                                 model_gat.trainable = False
                                 model_gat._name = 'Epi-GraphReg'
                                 #model_gat.summary()
 
-                                #model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_generalizable_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-                                model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_generalizable_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                 model_cnn = tf.keras.models.load_model(model_name)
                                 model_cnn.trainable = False
                                 model_cnn._name = 'Epi-CNN'
@@ -532,8 +529,10 @@ for c in range(4,6):
                         df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/cage_predictions_epi_models_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)
 
                         ##### write R and NLL for different 3D graphs and FDRs #####
-                        if check_effect_of_3D_data_and_fdr:
+                        if save_R_NLL_to_csv:
                             df = pd.DataFrame(columns=['Cell_train', 'Cell_test', 'Method', 'Set', 'valid_chr', 'test_chr', 'n_gene_test', '3D_data_train', '3D_data_test', 'FDR_train', 'FDR_test', 'R','NLL'])
+                            fdr_dict = {'1': 0.1, '01': 0.01, '001': 0.001}
+
                             for i in range(1,1+10):
                                 if organism == 'mouse' and i==9:
                                     iv2 = i+10
@@ -555,23 +554,23 @@ for c in range(4,6):
                                 valid_chr_str = ','.join(valid_chr_str)
 
                                 df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-GraphReg', 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                                                'n_gene_test': n_gene[i-1,0], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test,
+                                                'n_gene_test': n_gene[i-1,0], '3D_data_train': assay_type_train, 'FDR_train': fdr_dict[fdr_train], '3D_data_test': assay_type_test, 'FDR_test': fdr_dict[fdr_test],
                                                 'R': valid_rho_gat[i-1,0], 'NLL': valid_loss_gat[i-1,0]}, ignore_index=True)
                                 df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-GraphReg', 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                                                'n_gene_test': n_gene[i-1,1], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                                'n_gene_test': n_gene[i-1,1], '3D_data_train': assay_type_train, 'FDR_train': fdr_dict[fdr_train], '3D_data_test': assay_type_test, 'FDR_test': fdr_dict[fdr_test], 
                                                 'R': valid_rho_gat[i-1,1], 'NLL': valid_loss_gat[i-1,1]}, ignore_index=True)
                                 df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-GraphReg', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                                                'n_gene_test': n_gene[i-1,2], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                                'n_gene_test': n_gene[i-1,2], '3D_data_train': assay_type_train, 'FDR_train': fdr_dict[fdr_train], '3D_data_test': assay_type_test, 'FDR_test': fdr_dict[fdr_test], 
                                                 'R': valid_rho_gat[i-1,2], 'NLL': valid_loss_gat[i-1,2]}, ignore_index=True)
 
                                 df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-CNN', 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                                            'n_gene_test': n_gene[i-1,0], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                            'n_gene_test': n_gene[i-1,0], '3D_data_train': assay_type_train, 'FDR_train': fdr_dict[fdr_train], '3D_data_test': assay_type_test, 'FDR_test': fdr_dict[fdr_test], 
                                             'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
                                 df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-CNN', 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                                            'n_gene_test': n_gene[i-1,1], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                            'n_gene_test': n_gene[i-1,1], '3D_data_train': assay_type_train, 'FDR_train': fdr_dict[fdr_train], '3D_data_test': assay_type_test, 'FDR_test': fdr_dict[fdr_test], 
                                             'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
                                 df = df.append({'Cell_train': cell_line_train, 'Cell_test': cell_line_test, 'Method': 'Epi-CNN', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                                            'n_gene_test': n_gene[i-1,2], '3D_data_train': assay_type_train, 'FDR_train': fdr_train, '3D_data_test': assay_type_test, 'FDR_test': fdr_test, 
+                                            'n_gene_test': n_gene[i-1,2], '3D_data_train': assay_type_train, 'FDR_train': fdr_dict[fdr_train], '3D_data_test': assay_type_test, 'FDR_test': fdr_dict[fdr_test], 
                                             'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
 
                             df.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/R_NLL_epi_models_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)

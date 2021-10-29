@@ -39,7 +39,7 @@ load_np = False
 plot_violin = False
 plot_box = False
 plot_scatter = False
-check_effect_of_3D_data_and_fdr = True
+save_R_NLL_to_csv = True
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 qval = .1                                       # 0.1, 0.01, 0.001
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
@@ -561,8 +561,9 @@ if prediction == True:
 
 
     ##### write R and NLL for different 3D graphs and FDRs #####
-    if check_effect_of_3D_data_and_fdr:
+    if save_R_NLL_to_csv:
         df = pd.DataFrame(columns=['cell', 'Method', 'Set', 'valid_chr', 'test_chr', 'n_gene_test', '3D_data', 'FDR', 'R','NLL'])
+        
         for i in range(1,1+10):
             if organism == 'mouse' and i==9:
                 iv2 = i+10
@@ -591,13 +592,14 @@ if prediction == True:
                             'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,2], 'NLL': valid_loss_gat[i-1,2]}, ignore_index=True)
 
             df = df.append({'cell': cell_line, 'Method': 'Epi-CNN', 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                        'n_gene_test': n_gene[i-1,0], '3D_data': 'NA', 'FDR': 'NA', 'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
+                        'n_gene_test': n_gene[i-1,0], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
             df = df.append({'cell': cell_line, 'Method': 'Epi-CNN', 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                        'n_gene_test': n_gene[i-1,1], '3D_data': 'NA', 'FDR': 'NA', 'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
+                        'n_gene_test': n_gene[i-1,1], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
             df = df.append({'cell': cell_line, 'Method': 'Epi-CNN', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-                        'n_gene_test': n_gene[i-1,2], '3D_data': 'NA', 'FDR': 'NA', 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
+                        'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
 
-        df.to_csv(data_path+'/results/csv/cage_prediction/epi_models_R_NLL_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        df.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_R_NLL_epi_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        
 
     ##### plot violin plots #####
     if plot_violin == True:
@@ -867,7 +869,7 @@ if prediction == True:
 
 #################### log fold change ####################
 
-if logfold == True:    
+if logfold == True:
     cell_line_1 = 'GM12878'
     cell_line_2 = 'K562'
     organism = 'human'
