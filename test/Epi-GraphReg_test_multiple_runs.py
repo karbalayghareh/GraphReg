@@ -29,9 +29,9 @@ from statannot import add_stat_annotation
 
 ##### Input 
 batch_size = 1
-organism = 'human'            # human/mouse
-genome='hg19'                 # hg19/hg38/mm10
-cell_line = 'K562'            # K562/GM12878/mESC/hESC
+organism = 'mouse'            # human/mouse
+genome='mm10'                 # hg19/hg38/mm10
+cell_line = 'mESC'            # K562/GM12878/mESC/hESC
 write_bw = False              # write the predicted CAGE to bigwig files
 prediction = True
 logfold = False
@@ -41,7 +41,7 @@ plot_box = False
 plot_scatter = False
 save_R_NLL_to_csv = True
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
-qval = .1                                       # 0.1, 0.01, 0.001
+qval = .001                                       # 0.1, 0.01, 0.001
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
 
 if qval == 0.1:
@@ -50,12 +50,6 @@ elif qval == 0.01:
     fdr = '01'
 elif qval == 0.001:
     fdr = '001'
-
-
-def log2(x):
-  numerator = tf.math.log(x)
-  denominator = tf.math.log(tf.constant(2.))
-  return numerator / denominator
 
 def poisson_loss(y_true, mu_pred):
     nll = tf.reduce_mean(tf.math.lgamma(y_true + 1) + mu_pred - y_true * tf.math.log(mu_pred))
@@ -557,7 +551,7 @@ if prediction == True:
     print('Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
 
     # write the prediction to csv file
-    df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_epi_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+    df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/epi_models/cage_predictions_epi_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
 
     ##### write R and NLL for different 3D graphs and FDRs #####
@@ -598,7 +592,7 @@ if prediction == True:
             df = df.append({'cell': cell_line, 'Method': 'Epi-CNN', 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
                         'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
 
-        df.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_R_NLL_epi_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        df.to_csv(data_path+'/results/csv/cage_prediction/epi_models/R_NLL_epi_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
         
 
     ##### plot violin plots #####

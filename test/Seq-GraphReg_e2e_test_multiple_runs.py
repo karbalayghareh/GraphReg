@@ -30,9 +30,9 @@ from statannot import add_stat_annotation
 
 ##### Input 
 batch_size = 1
-organism = 'human'            # human/mouse
-genome='hg19'                 # hg19/hg38/mm10
-cell_line = 'GM12878'            # K562/GM12878/mESC/hESC
+organism = 'mouse'            # human/mouse
+genome='mm10'                 # hg19/hg38/mm10
+cell_line = 'mESC'            # K562/GM12878/mESC/hESC
 write_bw = False              # write the predicted CAGE to bigwig files
 prediction = True
 logfold = False
@@ -541,7 +541,7 @@ if prediction == True:
     print('Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
 
     # write the prediction to csv file
-    df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_e2e_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+    df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/seq_models/cage_predictions_seq_e2e_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
     ##### write R and NLL for different 3D graphs and FDRs #####
     if save_R_NLL_to_csv:
@@ -582,7 +582,7 @@ if prediction == True:
             df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
                         'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
 
-        df.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_R_NLL_seq_e2e_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        df.to_csv(data_path+'/results/csv/cage_prediction/seq_models/R_NLL_seq_e2e_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
 
     ##### plot violin plots #####

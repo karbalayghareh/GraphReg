@@ -226,7 +226,7 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
         
     for i in chr_list:
         #print('chr :', i)
-        file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'_chr'+str(i)+'.tfr'
+        file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'_chr'+str(i)+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
         tss_pos = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
         gene_names_all = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_chr'+str(i)+'.npy', allow_pickle=True)

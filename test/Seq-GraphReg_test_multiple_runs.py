@@ -44,8 +44,8 @@ save_R_NLL_to_csv = True
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 qval = .1                                       # 0.1, 0.01, 0.001
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
-dilated = True                                  # use dilated CNN in base model
-fft = True                                      # use fft in base CNN model (dh/dx where h is middle layer of base CNN)
+dilated = False                                  # use dilated CNN in base model
+fft = False                                      # use fft in base CNN model (dh/dx where h is middle layer of base CNN)
 
 if qval == 0.1:
     fdr = '1'
@@ -579,26 +579,26 @@ if prediction == True:
 
     # write the prediction to csv file
     if (not fft) and dilated:
-        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/seq_models/cage_predictions_seq_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
     elif (not fft) and (not dilated):
-        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_nodilation_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/seq_models/cage_predictions_seq_models_nodilation_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
     elif fft and dilated:
-        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_fft_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/seq_models/cage_predictions_seq_models_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
     elif fft and (not dilated):
-        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_cage_predictions_seq_models_nodilation_fft_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/seq_models/cage_predictions_seq_models_nodilation_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
 
     ##### write R and NLL for different 3D graphs and FDRs #####
     if save_R_NLL_to_csv:
         df = pd.DataFrame(columns=['cell', 'Method', 'Train_mode', 'Set', 'valid_chr', 'test_chr', 'n_gene_test', '3D_data', 'FDR', 'R','NLL'])
         if (not fft) and dilated:
-            train_mode = 'fft_no_dilated_yes'
+            train_mode = 'fft:no/dilated:yes'
         elif (not fft) and (not dilated):
-            train_mode = 'fft_no_dilated_no'
+            train_mode = 'fft:no/dilated:no'
         elif fft and dilated:
-            train_mode = 'fft_yes_dilated_yes'
+            train_mode = 'fft:yes/dilated:yes'
         elif fft and (not dilated):
-            train_mode = 'fft_yes_dilated_no'
+            train_mode = 'fft:yes/dilated:no'
 
         for i in range(1,1+10):
             if organism == 'mouse' and i==9:
@@ -627,14 +627,21 @@ if prediction == True:
             df = df.append({'cell': cell_line, 'Method': 'Seq-GraphReg', 'Train_mode': train_mode, 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
                             'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_gat[i-1,2], 'NLL': valid_loss_gat[i-1,2]}, ignore_index=True)
 
-            # df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-            #             'n_gene_test': n_gene[i-1,0], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
-            # df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-            #             'n_gene_test': n_gene[i-1,1], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
-            # df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
-            #             'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'All', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                        'n_gene_test': n_gene[i-1,0], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,0], 'NLL': valid_loss_cnn[i-1,0]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'Expressed', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                        'n_gene_test': n_gene[i-1,1], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,1], 'NLL': valid_loss_cnn[i-1,1]}, ignore_index=True)
+            df = df.append({'cell': cell_line, 'Method': 'Seq-CNN', 'Train_mode': train_mode, 'Set': 'Interacted', 'valid_chr': valid_chr_str, 'test_chr': test_chr_str, 
+                        'n_gene_test': n_gene[i-1,2], '3D_data': assay_type, 'FDR': qval, 'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
 
-        df.to_csv(data_path+'/results/csv/cage_prediction/'+cell_line+'_R_NLL_seq_e2e_models_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        if (not fft) and dilated:
+            df.to_csv(data_path+'/results/csv/cage_prediction/seq_models/R_NLL_seq_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        elif (not fft) and (not dilated):
+            df.to_csv(data_path+'/results/csv/cage_prediction/seq_models/R_NLL_seq_models_nodilation_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        elif fft and dilated:
+            df.to_csv(data_path+'/results/csv/cage_prediction/seq_models/R_NLL_seq_models_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
+        elif fft and (not dilated):
+            df.to_csv(data_path+'/results/csv/cage_prediction/seq_models/R_NLL_seq_models_nodilation_fft_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep="\t", index=False)
 
     ##### plot violin plots #####
     if plot_violin == True:
