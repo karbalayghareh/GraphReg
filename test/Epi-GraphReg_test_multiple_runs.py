@@ -30,18 +30,18 @@ from statannot import add_stat_annotation
 ##### Input 
 batch_size = 1
 organism = 'mouse'            # human/mouse
-genome='mm10'                 # hg19/hg38/mm10
-cell_line = 'mESC'            # K562/GM12878/mESC/hESC
+genome='hg19'                 # hg19/hg38/mm10
+cell_line = 'K562'            # K562/GM12878/mESC/hESC
 write_bw = False              # write the predicted CAGE to bigwig files
 prediction = True
 logfold = False
-load_np = False
+load_np = True
 plot_violin = False
 plot_box = False
 plot_scatter = False
 save_R_NLL_to_csv = True
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
-qval = .001                                       # 0.1, 0.01, 0.001
+qval = .1                                       # 0.1, 0.01, 0.001
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
 
 if qval == 0.1:

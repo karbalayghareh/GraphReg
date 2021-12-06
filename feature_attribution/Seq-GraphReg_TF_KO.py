@@ -177,7 +177,7 @@ def read_tf_record_1shot(iterator):
         last_batch = 10
     return data_exist, seq, X_epi, Y, adj, idx, tss_idx, pos, last_batch
 
-def calculate_loss(model_gat, model_cnn, chr_list, cell_line, organism, genome, batch_size, e2e, write_bw, TF_positions_df, TFs):
+def calculate_loss(model_gat, model_cnn, chr_list, cell_line, organism, genome, batch_size, TF_positions_df, TFs):
     loss_gat_all = np.array([])
     loss_cnn_all = np.array([])
     Y_hat_gat_all = np.array([])
@@ -230,19 +230,6 @@ def calculate_loss(model_gat, model_cnn, chr_list, cell_line, organism, genome, 
                     Y_hat_cnn, _, _, _, _ = model_cnn(seq)
                     Y_hat_gat, _, _, _, _, _ = model_gat([seq, adj])
 
-                    # Y_idx = tf.gather(Y, idx, axis=1)
-                    # Y_hat_cnn_idx = tf.gather(Y_hat_cnn, idx, axis=1)
-                    # Y_hat_gat_idx = tf.gather(Y_hat_gat, idx, axis=1)
-
-                    # loss_gat = poisson_loss(Y_idx,Y_hat_gat_idx)
-                    # loss_cnn = poisson_loss(Y_idx,Y_hat_cnn_idx)
-                    # loss_gat_all = np.append(loss_gat_all, loss_gat.numpy())
-                    # loss_cnn_all = np.append(loss_cnn_all, loss_cnn.numpy())
-
-                    # Y_hat_gat_all = np.append(Y_hat_gat_all, Y_hat_gat_idx.numpy().ravel())
-                    # Y_hat_cnn_all = np.append(Y_hat_cnn_all, Y_hat_cnn_idx.numpy().ravel())
-                    # Y_all = np.append(Y_all, Y_idx.numpy().ravel())
-
                     chr_pos.append('chr'+str(i)+'_'+str(pos[20000]))
 
                     ## extract gene tss's ##
@@ -292,17 +279,6 @@ def calculate_loss(model_gat, model_cnn, chr_list, cell_line, organism, genome, 
                         else: 
                             Y_hat_cnn_ko = Y_hat_cnn
                             Y_hat_gat_ko = Y_hat_gat
-
-                        # Y_hat_cnn_ko_idx = tf.gather(Y_hat_cnn_ko, idx, axis=1)
-                        # Y_hat_gat_ko_idx = tf.gather(Y_hat_gat_ko, idx, axis=1)
-
-                        # loss_gat_ko = poisson_loss(Y_idx,Y_hat_gat_ko_idx)
-                        # loss_cnn_ko = poisson_loss(Y_idx,Y_hat_cnn_ko_idx)
-                        # loss_gat_ko_all = np.append(loss_gat_ko_all, loss_gat_ko.numpy())
-                        # loss_cnn_ko_all = np.append(loss_cnn_ko_all, loss_cnn_ko.numpy())
-
-                        # Y_hat_gat_ko_all = np.append(Y_hat_gat_ko_all, Y_hat_gat_ko_idx.numpy().ravel())
-                        # Y_hat_cnn_ko_all = np.append(Y_hat_cnn_ko_all, Y_hat_cnn_ko_idx.numpy().ravel())
 
                         for j in range(len(tss_pos_1)):
                             idx_tss = np.where(pos == int(np.floor(tss_pos_1[j]/100)*100))[0][0]
@@ -366,7 +342,7 @@ for i in range(1,1+N):
     model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_'+assay_type+'_FDR_'+FDR+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
     model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
     model_gat.trainable = False
-    model_gat._name = 'Seq-GraphReh_e2e'
+    model_gat._name = 'Seq-GraphReg_e2e'
     #model_gat.summary()
 
     model_name = data_path+'/models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_'+assay_type+'_FDR_'+FDR+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
@@ -545,7 +521,7 @@ TFs = np.delete(TFs,9)
 print('TFs: ', TFs)
 
 ### log2FC distribution ###
-n_min = 10
+n_min = 5
 CAGE_min = 20
 
 mean_gr = np.array([])
@@ -561,7 +537,7 @@ pred_genes_cnn = []
 mat_gr = []
 mat_cnn = []
 p_adj_thr = .05
-df_sns = pd.DataFrame(columns=['auPR','Method', 'TF_KO'])
+df_sns = pd.DataFrame(columns=['Method', 'TF_KO'])
 for k in range(len(TFs)):
     df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_'+TFs[k]+'_all.tsv', sep='\t')
     _, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
@@ -581,6 +557,7 @@ for k in range(len(TFs)):
         df_pos_gr = df_sub.sort_values(by=['log2FoldChange_GraphReg'],ascending=True).reset_index(drop=True)[0:N]
         pred_genes_gr.append(df_pos_gr['gene_name'].values[0:20])
         mat_gr.append(df_pos_gr['log2FoldChange_true'].values[0:20])
+
         df_pos_cnn = df_sub.sort_values(by=['log2FoldChange_CNN'],ascending=True).reset_index(drop=True)[0:N]
         pred_genes_cnn.append(df_pos_cnn['gene_name'].values[0:20])
         mat_cnn.append(df_pos_cnn['log2FoldChange_true'].values[0:20])
@@ -610,6 +587,7 @@ b=sns.boxplot(x='Method', y='Mean', data=df_sns, palette={"Seq-GraphReg": "orang
 add_stat_annotation(ax1, data=df_sns, x='Method', y='Mean',
                 box_pairs=[(("Seq-GraphReg"), ("Seq-CNN")), (("Seq-GraphReg"), ("Baseline")), (("Seq-CNN"), ("Baseline"))],
                 test='Wilcoxon', text_format='star', loc='inside', verbose=0, fontsize='x-large')
+b=sns.swarmplot(x='Method', y='Mean', data=df_sns, color = 'black', alpha=.3, size=8, ax=ax1)
 ax1.yaxis.set_tick_params(labelsize=20)
 ax1.xaxis.set_tick_params(labelsize=20)
 ax1.set_title('n >= '+str(n_min), fontsize=20)
@@ -619,13 +597,14 @@ b.set_ylabel("Mean Log2FC",fontsize=20)
 #plt.setp(ax1.get_legend().get_title(), fontsize='15')
 #ax1.set_ylim((.4,.75))
 plt.tight_layout()
-plt.savefig('../figs/TF_KO/boxplot_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_mean.png')
+plt.savefig('../figs/TF_KO/boxplot_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_mean.pdf')
 
 fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
 b=sns.boxplot(x='Method', y='Fraction', data=df_sns, palette={"Seq-GraphReg": "orange", "Seq-CNN": "deepskyblue", "Baseline": "green"}, ax=ax1)
 add_stat_annotation(ax1, data=df_sns, x='Method', y='Fraction',
                 box_pairs=[(("Seq-GraphReg"), ("Seq-CNN")), (("Seq-GraphReg"), ("Baseline")), (("Seq-CNN"), ("Baseline"))],
                 test='Wilcoxon', text_format='star', loc='inside', verbose=0, fontsize='x-large')
+b=sns.swarmplot(x='Method', y='Fraction', data=df_sns, color = 'black', alpha=.3, size=8, ax=ax1)
 ax1.yaxis.set_tick_params(labelsize=20)
 ax1.xaxis.set_tick_params(labelsize=20)
 ax1.set_title('n >= '+str(n_min), fontsize=20)
@@ -635,38 +614,38 @@ b.set_ylabel("Precision",fontsize=20)
 #plt.setp(ax1.get_legend().get_title(), fontsize='15')
 #ax1.set_ylim((.4,.75))
 plt.tight_layout()
-plt.savefig('../figs/TF_KO/boxplot_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_Fraction.png')
+plt.savefig('../figs/TF_KO/boxplot_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_Fraction.pdf')
 
 ### plot heatmap ###
 mean = np.vstack((mean_gr, mean_cnn))
 df_hm = pd.DataFrame(data=mean, index=['Seq-GraphReg', 'Seq-CNN'], columns=TF_hm)
 df_hm = df_hm.sort_values(by=['Seq-GraphReg'], axis = 1)
-plt.figure(figsize = (20,3))
+plt.figure(figsize = (20,3.5))
 ax = sns.heatmap(df_hm, xticklabels=1, yticklabels=1, cmap="coolwarm", annot=df_hm, annot_kws={'rotation': 90})
 ax.set_title('n >= '+str(n_min), fontsize=20)
 ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 20, rotation=0)
-ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 15, rotation=90)
+ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 20, rotation=90)
 cbar = ax.collections[0].colorbar
 cbar.set_label(label='Mean Log2FC', size=20)
 cbar.ax.tick_params(labelsize=20)
 #ax.set_aspect('equal')
 plt.tight_layout()
-plt.savefig('../figs/TF_KO/heatmap_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_mean.png')
+plt.savefig('../figs/TF_KO/heatmap_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_mean.pdf')
 
 Fraction = np.vstack((frac_gr, frac_cnn))
 df_hm = pd.DataFrame(data=Fraction, index=['Seq-GraphReg', 'Seq-CNN'], columns=TF_hm)
 df_hm = df_hm.sort_values(by=['Seq-GraphReg'], ascending=False, axis = 1)
-plt.figure(figsize = (20,3))
+plt.figure(figsize = (20,3.5))
 ax = sns.heatmap(df_hm, xticklabels=1, yticklabels=1, cmap="YlGnBu", annot=df_hm, annot_kws={'rotation': 90})
 ax.set_title('n >= '+str(n_min), fontsize=20)
 ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 20, rotation=0)
-ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 15, rotation=90)
+ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 20, rotation=90)
 cbar = ax.collections[0].colorbar
 cbar.set_label(label='Precision', size=20)
 cbar.ax.tick_params(labelsize=20)
 #ax.set_aspect('equal')
 plt.tight_layout()
-plt.savefig('../figs/TF_KO/heatmap_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_Fraction.png')
+plt.savefig('../figs/TF_KO/heatmap_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'_Fraction.pdf')
 
 
 ### Gene by TF heatmaps ###
@@ -788,3 +767,35 @@ df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_JUND_all.tsv', sep
 _, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
 df['pvalue_true'] = pvals_adjusted
 
+
+##### scatter plots #####
+TF = 'USF2'
+n_min = 5
+CAGE_min = 20
+p_adj_thr = 0.05
+df = pd.read_csv(data_path+'/results/csv/insilico_TF_KO/TF_KO_'+TF+'_all.tsv', sep='\t')
+_, pvals_adjusted, _, _ = fdr.multipletests(df['pvalue_true'].values, alpha=p_adj_thr, method='fdr_bh', is_sorted=False)
+df['pvalue_true'] = pvals_adjusted
+
+df_sub = df[((df['true_CAGE']>=CAGE_min) & (df['n_contacts']>=n_min) & (df['pvalue_true'] <= p_adj_thr))]
+print('len df_sub: ', len(df_sub))
+
+sns.set_style("whitegrid")
+fig, ax = plt.subplots()
+g = sns.scatterplot(data=df_sub, x="log2FoldChange_true", y="log2FoldChange_GraphReg", alpha=.5, palette=plt.cm.get_cmap('viridis_r'), ax=ax)
+ax.set_title('{}'.format(TF))
+ax.set_xlabel('log2FC True')
+ax.set_ylabel('log2FC GrapgReg')
+plt.tight_layout()
+plt.savefig('../figs/TF_KO/scatterplot_logfc_true_vs_graphreg_'+TF+'.pdf')
+plt.close()
+
+sns.set_style("whitegrid")
+fig, ax = plt.subplots()
+g = sns.scatterplot(data=df_sub, x="log2FoldChange_true", y="log2FoldChange_CNN", alpha=.5, palette=plt.cm.get_cmap('viridis_r'), ax=ax)
+ax.set_title('{}'.format(TF))
+ax.set_xlabel('log2FC True')
+ax.set_ylabel('log2FC CNN')
+plt.tight_layout()
+plt.savefig('../figs/TF_KO/scatterplot_logfc_true_vs_cnn_'+TF+'.pdf')
+plt.close()

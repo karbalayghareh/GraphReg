@@ -19,11 +19,17 @@ from tensorflow.keras import regularizers
 from tensorflow.keras import backend as K
 from scipy.stats import wilcoxon
 import shap
+from statannot import add_stat_annotation
+import seaborn as sns
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import auc
 import pyBigWig
 from collections import Counter
+# Needed for Illustrator
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['font.family'] = ['Arial','Helvetica']
 
 ##### Input 
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
@@ -579,9 +585,43 @@ ax.set_xticklabels(['ABC', 'Epi-GraphReg Deepshap', 'Epi-GraphReg Saliency', 'Se
 ax.set_ylabel('AUPRC', fontsize=40)
 ax.set_title('Distribution of '+str(len(auprc_abc))+' Genes', fontsize=40)
 ax.tick_params(axis='y', labelsize=30)
-ax.tick_params(axis='x', labelsize=20)
+ax.tick_params(axis='x', labelsize=30)
 ax.grid(axis='y')
 fig.savefig('../figs/flowfish/AUPRC_boxplot.png')
+
+#### seaborn boxplot
+
+df = pd.DataFrame(columns=['Method', 'FA', 'auPR', 'ID'])
+N = len(auprc_abc)
+for i in range(N):
+    df = df.append({'Method': 'ABC', 'FA': '', 'auPR': auprc_abc[i], 'ID': i}, ignore_index=True)
+for i in range(N):
+    df = df.append({'Method': 'GraphReg', 'FA': 'Epi/DeepSHAP', 'auPR': auprc_e_graphreg_deepshap[i], 'ID': i}, ignore_index=True)
+for i in range(N):
+    df = df.append({'Method': 'CNN', 'FA': 'Epi/DeepSHAP', 'auPR': auprc_e_cnn_deepshap[i], 'ID': i}, ignore_index=True)
+for i in range(N):
+    df = df.append({'Method': 'GraphReg', 'FA': 'Epi/Saliency', 'auPR': auprc_e_graphreg_saliency[i], 'ID': i}, ignore_index=True)
+for i in range(N):
+    df = df.append({'Method': 'CNN', 'FA': 'Epi/Saliency', 'auPR': auprc_e_cnn_saliency[i], 'ID': i}, ignore_index=True)
+for i in range(N):
+    df = df.append({'Method': 'GraphReg', 'FA': 'Seq/Saliency', 'auPR': auprc_s_graphreg_saliency[i], 'ID': i}, ignore_index=True)
+for i in range(N):
+    df = df.append({'Method': 'CNN', 'FA': 'Seq/Saliency', 'auPR': auprc_s_cnn_saliency[i], 'ID': i}, ignore_index=True)
+
+fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(9, 5))
+b=sns.boxplot(x='Method', y='auPR', data=df, hue='FA', palette='Set3', order=['CNN', 'GraphReg', 'ABC'], ax=ax1)
+ax1.yaxis.set_tick_params(labelsize=20)
+ax1.xaxis.set_tick_params(labelsize=20)
+ax1.set_title('FlowFISH | Distribution of '+str(len(auprc_abc))+' Genes', fontsize=20)
+b.set_xlabel("",fontsize=20)
+b.set_ylabel("auPR",fontsize=20)
+plt.legend(bbox_to_anchor=(1.01, 1), borderaxespad=0)
+plt.setp(ax1.get_legend().get_texts(), fontsize='20')
+plt.setp(ax1.get_legend().get_title(), fontsize='20')
+plt.tight_layout()
+fig.savefig('../figs/flowfish/AUPRC_boxplot.pdf')
+
+####
 
 plt.close("all")
 ap_list = [ap_abc, ap_e_graphreg_deepshap, ap_e_cnn_deepshap, ap_e_graphreg_saliency, ap_e_cnn_saliency, ap_s_graphreg_saliency, ap_s_cnn_saliency]
@@ -920,23 +960,24 @@ precision_s_cnn_saliency, recall_s_cnn_saliency, thresholds_s_cnn_saliency = pre
 ap_s_cnn_all_saliency = average_precision_score(Y_true, Y_pred_cnn)
 auprc_s_cnn_all_saliency = auc(recall_s_cnn_saliency, precision_s_cnn_saliency)
 
-plt.figure(figsize=(15,15))
+plt.figure(figsize=(10,10))
 plt.plot(recall_abc, precision_abc, color='lightgreen', linewidth=3, label="ABC: AUC = "+str(auprc_abc_all.astype(np.float16)))
-plt.plot(recall_e_graphreg_deepshap, precision_e_graphreg_deepshap, color='orange', linewidth=3, label="Epi-GraphReg (Deepshap): AUC = "+str(auprc_e_graphreg_all_deepshap.astype(np.float16)))
+plt.plot(recall_e_graphreg_deepshap, precision_e_graphreg_deepshap, color='orange', linewidth=3, label="Epi-GraphReg (DeepSHAP): AUC = "+str(auprc_e_graphreg_all_deepshap.astype(np.float16)))
 plt.plot(recall_e_graphreg_saliency, precision_e_graphreg_saliency, color='orange', linewidth=3, linestyle='--', label="Epi-GraphReg (Saliency): AUC = "+str(auprc_e_graphreg_all_saliency.astype(np.float16)))
 plt.plot(recall_s_graphreg_saliency, precision_s_graphreg_saliency, color='orange', linewidth=3, linestyle=':', label="Seq-GraphReg (Saliency): AUC = "+str(auprc_s_graphreg_all_saliency.astype(np.float16)))
 
-plt.plot(recall_e_cnn_deepshap, precision_e_cnn_deepshap, color='deepskyblue', linewidth=3, label="Epi-CNN (Deepshap): AUC = "+str(auprc_e_cnn_all_deepshap.astype(np.float16)))
+plt.plot(recall_e_cnn_deepshap, precision_e_cnn_deepshap, color='deepskyblue', linewidth=3, label="Epi-CNN (DeepSHAP): AUC = "+str(auprc_e_cnn_all_deepshap.astype(np.float16)))
 plt.plot(recall_e_cnn_saliency, precision_e_cnn_saliency, color='deepskyblue', linewidth=3, linestyle='--', label="Epi-CNN (Saliency): AUC = "+str(auprc_e_cnn_all_saliency.astype(np.float16)))
 plt.plot(recall_s_cnn_saliency, precision_s_cnn_saliency, color='deepskyblue', linewidth=3, linestyle=':', label="Seq-CNN (Saliency): AUC = "+str(auprc_s_cnn_all_saliency.astype(np.float16)))
 
-plt.title('DE-G Pairs ('+str(len(Y_true))+')', fontsize=40)
-plt.legend(loc="upper right", fontsize=23)
+plt.title('FlowFISH | DE-G Pairs ('+str(len(Y_true))+')', fontsize=40)
+plt.legend(bbox_to_anchor=(1.01, 1), borderaxespad=0, fontsize=40)
 plt.xlabel("Recall", fontsize=40)
 plt.ylabel("Precision", fontsize=40)
 plt.tick_params(axis='x', labelsize=40)
 plt.tick_params(axis='y', labelsize=40)
-plt.savefig('../figs/flowfish/PR_curve.png')
+#plt.tight_layout()
+plt.savefig('../figs/flowfish/PR_curve.pdf', bbox_inches='tight')
 
 
 ##### SP ######
