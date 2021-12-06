@@ -1,5 +1,6 @@
 # Ignore these folders
-models/
+models_old/
+figs/
 jobs/
 .vscode/
 __pycache__/
@@ -7,6 +8,7 @@ __pycache__/
 # Ignore these files
 *.sh
 *.pdf
+*.png
 *.log
 *.pyc
 
