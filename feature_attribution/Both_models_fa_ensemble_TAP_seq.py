@@ -588,7 +588,7 @@ fig.savefig('../figs/tap_seq/AUPRC_boxplot.png')
 df = pd.DataFrame(columns=['Method', 'FA', 'auPR', 'ID'])
 N = len(auprc_abc)
 for i in range(N):
-    df = df.append({'Method': 'ABC', 'FA': '', 'auPR': auprc_abc[i], 'ID': i}, ignore_index=True)
+    df = df.append({'Method': 'ABC', 'FA': 'N/A', 'auPR': auprc_abc[i], 'ID': i}, ignore_index=True)
 for i in range(N):
     df = df.append({'Method': 'GraphReg', 'FA': 'Epi/DeepSHAP', 'auPR': auprc_e_graphreg_deepshap[i], 'ID': i}, ignore_index=True)
 for i in range(N):
@@ -603,12 +603,14 @@ for i in range(N):
     df = df.append({'Method': 'CNN', 'FA': 'Seq/Saliency', 'auPR': auprc_s_cnn_saliency[i], 'ID': i}, ignore_index=True)
 
 fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(9, 5))
-b=sns.boxplot(x='Method', y='auPR', data=df, hue='FA', palette='Set3', order=['CNN', 'GraphReg', 'ABC'], ax=ax1)
+b=sns.boxplot(x='FA', y='auPR', data=df, hue='Method', palette={"GraphReg": "orange", "CNN": "deepskyblue", "ABC": "lightgreen"}, order = ['Epi/DeepSHAP', 'Epi/Saliency', 'Seq/Saliency', 'N/A'], ax=ax1)
 ax1.yaxis.set_tick_params(labelsize=20)
 ax1.xaxis.set_tick_params(labelsize=20)
 ax1.set_title('TAP-seq | Distribution of '+str(len(auprc_abc))+' Genes', fontsize=20)
 b.set_xlabel("",fontsize=20)
 b.set_ylabel("auPR",fontsize=20)
+loc, labels = plt.xticks()
+b.set_xticklabels(labels, rotation=15)
 plt.legend(bbox_to_anchor=(1.01, 1), borderaxespad=0)
 plt.setp(ax1.get_legend().get_texts(), fontsize='20')
 plt.setp(ax1.get_legend().get_title(), fontsize='20')
