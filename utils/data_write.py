@@ -72,11 +72,11 @@ def main():
 
   organism = 'human'          # human/mouse
   res = '5kb'                 # 5kb/10kb
-  cell_line = 'hESC'          # K562/GM12878/hESC/mESC
-  genome='hg38'               # hg19/hg38/mm10
-  model = 'seq'               # seq/epi
-  assay_type = 'MicroC'        # HiC/HiChIP/MicroC/HiCAR
-  qval = 0.1                    # 0.1/0.01/0.001
+  cell_line = 'GM12878'          # K562/GM12878/hESC/mESC
+  genome='hg19'               # hg19/hg38/mm10
+  model = 'epi'               # seq/epi
+  assay_type = 'HiC'        # HiC/HiChIP/MicroC/HiCAR
+  qval = 0.001                    # 0.1/0.01/0.001
   data_path = '/media/labuser/STORAGE/GraphReg'
 
   if qval == 0.1:
@@ -103,7 +103,9 @@ def main():
     print('chr ', i)
     chr_temp = 'chr'+str(i)
     seqs_bed_file = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr_temp+'.bed'
-    tfr_file = data_path+'/data/tfrecords/tfr_'+model+'_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr_temp+'.tfr'
+    #tfr_file = data_path+'/data/tfrecords/tfr_'+model+'_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr_temp+'.tfr'
+    tfr_file = data_path+'/data/tfrecords/tfr_'+model+'_RPGC_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr_temp+'.tfr'
+
 
     ################################################################
     # read model sequences
@@ -121,13 +123,13 @@ def main():
     ################################################################
     # determine sequence coverage files
 
-    seqs_cov_files = [data_path+'/data/'+cell_line+'/seqs_cov/CAGE_cov_'+chr_temp+'.h5',
-                      data_path+'/data/'+cell_line+'/seqs_cov/H3K4me3_cov_'+chr_temp+'.h5',
-                      data_path+'/data/'+cell_line+'/seqs_cov/H3K27ac_cov_danwei_'+chr_temp+'.h5',
+    seqs_cov_files = [data_path+'/data/'+cell_line+'/seqs_cov/CAGE_cov_RPGC_'+chr_temp+'.h5',
+                      data_path+'/data/'+cell_line+'/seqs_cov/H3K4me3_cov_RPGC_'+chr_temp+'.h5',
+                      data_path+'/data/'+cell_line+'/seqs_cov/H3K27ac_cov_RPGC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov/H3K4me1_cov_FC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov/H3K27me3_cov_FC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov/CTCF_cov_FC_'+chr_temp+'.h5',
-                      data_path+'/data/'+cell_line+'/seqs_cov/DNase_cov_'+chr_temp+'.h5'
+                      data_path+'/data/'+cell_line+'/seqs_cov/DNase_cov_RPGC_'+chr_temp+'.h5'
                       ]
     seq_pool_len = h5py.File(seqs_cov_files[1], 'r')['seqs_cov'].shape[1]
     num_targets = len(seqs_cov_files)
@@ -150,17 +152,18 @@ def main():
       if ti > 0:
         if model == 'epi':
           tmp = np.log2(tmp+1)                  # log normalize
-          if i == 1:
-            q[ti-1] = np.max(tmp.ravel())
-          x_max = q[ti-1]
-          x_min = np.min(tmp.ravel())
-          tmp = (tmp - x_min)/(x_max - x_min)   # in range [0, 1]
+          #if i == 1:
+          #  q[ti-1] = np.max(tmp.ravel())
+          #x_max = q[ti-1]
+          #x_min = np.min(tmp.ravel())
+          #tmp = (tmp - x_min)/(x_max - x_min)   # in range [0, 1]
 
         print(ti, np.sort(tmp.ravel())[-200:])
         targets[:,:,ti] = tmp
 
       elif ti == 0:
-        targets[:,:,ti] = tmp
+        #targets[:,:,ti] = tmp
+        targets_y = tmp
         print(ti, np.sort(tmp.ravel())[-200:])
 
       seqs_cov_open.close()
@@ -217,7 +220,7 @@ def main():
         adj_real[adj_real>=1000] = 1000
         adj_real = np.log2(adj_real+1)
         adj_real = adj_real * (np.ones([3*T,3*T]) - np.eye(3*T))
-        print('real_adj: ',adj_real)
+        #print('real_adj: ',adj_real)
 
         adj = np.copy(adj_real)
         adj[adj>0] = 1
@@ -230,7 +233,8 @@ def main():
         tss_idx = tss_bin[si-TT:si+TT]
         bin_idx = bin_start[si-TT:si+TT]
         
-        Y = targets[si-TT:si+TT,:,0]
+        #Y = targets[si-TT:si+TT,:,0]
+        Y = targets_y[si-TT:si+TT]
         X_1d = targets[si-TT:si+TT,:,1:]
 
         X_1d = X_1d.astype(np.float16)

@@ -53,10 +53,10 @@ def main():
       default=False, action='store_true',
       help='Soft clip values, applying sqrt to the execess above the threshold [Default: %default]')
   parser.add_option('-u', dest='sum_stat',
-      default='sum',
+      default='max',
       help='Summary statistic to compute in windows [Default: %default]')
   parser.add_option('-w',dest='pool_width',
-      default=100, type='int',
+      default=5000, type='int',
       help='Average pooling width [Default: %default]')
   (options, args) = parser.parse_args()
 
@@ -64,9 +64,9 @@ def main():
   # Inputs
 
   organism = 'human'
-  cell_line = 'hESC'
+  cell_line = 'GM12878'
   res = '5kb'
-  genome='hg38'
+  genome='hg19'
   data_path = '/media/labuser/STORAGE/GraphReg'
 
   if organism == 'human':
@@ -77,9 +77,9 @@ def main():
   for i in chr_list:
     print(i)
     chr_temp = 'chr'+str(i)
-    genome_cov_file = data_path+'/data/'+cell_line+'/bigwig/H3K27ac_H1_hg38_rep1.bw'
+    genome_cov_file = data_path+'/data/'+cell_line+'/bam/GM12878_CAGE_binsize_5000bp.bigWig'
     seqs_bed_file = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr_temp+'.bed'
-    seqs_cov_file = data_path+'/data/'+cell_line+'/seqs_cov/H3K27ac_cov_danwei_'+chr_temp+'.h5'
+    seqs_cov_file = data_path+'/data/'+cell_line+'/seqs_cov/CAGE_cov_RPGC_'+chr_temp+'.h5'
 
     assert(options.crop_bp >= 0)
 

@@ -124,8 +124,8 @@ def main():
             idx = tf.range(T, 2*T)
 
             Y = next_datum['Y']
-            Y = tf.reshape(Y, [batch_size, 3*T, b])
-            Y = tf.reduce_sum(Y, axis=2)
+            #Y = tf.reshape(Y, [batch_size, 3*T, b])
+            #Y = tf.reduce_sum(Y, axis=2)
             Y = tf.reshape(Y, [batch_size, 3*T])
 
         else:
@@ -147,7 +147,8 @@ def main():
                 if options.generalizable == 0:
                     file_name = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
                 else:
-                    file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                    #file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                    file_name = data_path+'/data/tfrecords/tfr_epi_RPGC_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
 
                 iterator = dataset_iterator(file_name, batch_size)
                 while True:
@@ -231,7 +232,8 @@ def main():
     if options.generalizable == 0:
         model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
     else:
-        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_generalizable_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
+        #model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_generalizable_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
+        model_name_cnn = data_path+'/models/'+cell_line+'/Epi-CNN_RPGC_'+cell_line+'_valid_chr_'+options.valid_chr+'_test_chr_'+options.test_chr+'.h5'
     
     if options.organism == 'mouse':
         train_chr_list = [c for c in range(1,1+19)]
@@ -249,7 +251,7 @@ def main():
             train_chr_list.remove(vt[j])
 
     best_loss = 1e20
-    max_early_stopping = 5 
+    max_early_stopping = 10 
     n_epochs = 100
     opt = tf.keras.optimizers.Adam(learning_rate=.0002, decay=1e-6)
     batch_size = 1
@@ -264,7 +266,8 @@ def main():
                 if options.generalizable == 0:
                     file_name_train = data_path+'/data/tfrecords/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
                 else:
-                    file_name_train = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                    #file_name_train = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
+                    file_name_train = data_path+'/data/tfrecords/tfr_epi_RPGC_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_chr'+str(i)+'.tfr'
 
                 iterator_train = dataset_iterator(file_name_train, batch_size)
                 while True:
