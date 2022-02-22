@@ -25,6 +25,8 @@ from sklearn.metrics import auc
 import pyBigWig
 from collections import Counter
 import pysam
+import seaborn as sns
+
 
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
@@ -42,38 +44,50 @@ genome = 'hg19'               # hg19
 saliency_method = 'saliency'  # saliency
 write_bw = False              # write the predicted CAGE to bigwig files
 load_fa = False               # load feature attribution numpy files
-cell = 'GM12878'              # GM12878/K562
+cell_line = 'K562'              # GM12878/K562
 
-if cell == 'GM12878':
-    # GM12878
-    df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
-    df_GM12878 = df[(df['M'] >= 1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
-    df_GM12878 = df_GM12878.sort_values(by=['M','A'], ascending=False)
-    df_GM12878 = df_GM12878.reset_index(drop=True)
-    df_GM12878 = df_GM12878.iloc[0:50]   # top 50 genes for GM12878
-    gene_names_list = df_GM12878['gene'].values
-    chr_list = df_GM12878['chr'].values
-    gene_tss_list = df_GM12878['tss'].values
-    print(len(gene_names_list), gene_names_list)
-    print(len(chr_list), chr_list)
-    print(len(gene_tss_list), gene_tss_list)
-    cell_line = ['GM12878']
+# Top 100 best predicted genes using Seq-GraphReg
+df = pd.read_csv(data_path+'/results/csv/cage_prediction/seq_models/cage_predictions_seq_e2e_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep='\t')
+df = df[((df['true_cage']>=100) & (df['n_tss']==1) & (df['n_contact']>=10) & (np.abs(df['delta_nll']) > 300) & ((df['nll_seq_graphreg'] < 300)))].reset_index(drop=True)
+df = df.sort_values(by=['delta_nll'], ascending=False).reset_index(drop=True)
+df = df.iloc[:100]
+gene_names_list = df['genes'].values
+chr_list = df['chr'].values
+gene_tss_list = df['tss'].values
+print(len(gene_names_list), gene_names_list)
+print(len(chr_list), chr_list)
+print(len(gene_tss_list), gene_tss_list)
+cell_line = [cell_line]
 
-elif cell == 'K562':
-    # K562
-    df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
-    df_K562 = df[(df['M'] <= -1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
-    df_K562 = df_K562.sort_values(by=['M','A'], ascending=[True, False])
-    df_K562 = df_K562.reset_index(drop=True)
-    df_K562 = df_K562.iloc[0:50]   # top 50 genes for K562
-    gene_names_list = df_K562['gene'].values
-    chr_list = df_K562['chr'].values
-    gene_tss_list = df_K562['tss'].values
-    print(len(gene_names_list), gene_names_list)
-    print(len(chr_list), chr_list)
-    print(len(gene_tss_list), gene_tss_list)
-    cell_line = ['K562'] 
+# if cell == 'GM12878':
+#     # GM12878
+#     df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
+#     df_GM12878 = df[(df['M'] >= 1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
+#     df_GM12878 = df_GM12878.sort_values(by=['M','A'], ascending=False)
+#     df_GM12878 = df_GM12878.reset_index(drop=True)
+#     df_GM12878 = df_GM12878.iloc[0:50]   # top 50 genes for GM12878
+#     gene_names_list = df_GM12878['gene'].values
+#     chr_list = df_GM12878['chr'].values
+#     gene_tss_list = df_GM12878['tss'].values
+#     print(len(gene_names_list), gene_names_list)
+#     print(len(chr_list), chr_list)
+#     print(len(gene_tss_list), gene_tss_list)
+#     cell_line = ['GM12878']
 
+# elif cell == 'K562':
+#     # K562
+#     df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
+#     df_K562 = df[(df['M'] <= -1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
+#     df_K562 = df_K562.sort_values(by=['M','A'], ascending=[True, False])
+#     df_K562 = df_K562.reset_index(drop=True)
+#     df_K562 = df_K562.iloc[0:50]   # top 50 genes for K562
+#     gene_names_list = df_K562['gene'].values
+#     chr_list = df_K562['chr'].values
+#     gene_tss_list = df_K562['tss'].values
+#     print(len(gene_names_list), gene_names_list)
+#     print(len(chr_list), chr_list)
+#     print(len(gene_tss_list), gene_tss_list)
+#     cell_line = ['K562'] 
 
 def log2(x):
   numerator = tf.math.log(x)
@@ -366,17 +380,17 @@ for num, cell_line in enumerate(cell_line):
                                 grads_cnn = 0
                                 grads_by_inp_cnn = 0
                                 for j in range(1,1+10):
-                                    if organism == 'mouse' and i==9:
-                                        iv2 = i+10
+                                    if organism == 'mouse' and j==9:
+                                        iv2 = j+10
                                         it2 = 1
-                                    elif organism == 'mouse' and i==10:
+                                    elif organism == 'mouse' and j==10:
                                         iv2 = 1
                                         it2 = 2
                                     else:
-                                        iv2 = i+10
-                                        it2 = i+11
-                                    valid_chr_list = [i, iv2]
-                                    test_chr_list = [i+1, it2]
+                                        iv2 = j+10
+                                        it2 = j+11
+                                    valid_chr_list = [j, iv2]
+                                    test_chr_list = [j+1, it2]
 
                                     test_chr_str = [str(i) for i in test_chr_list]
                                     test_chr_str = ','.join(test_chr_str)
@@ -418,17 +432,17 @@ for num, cell_line in enumerate(cell_line):
                                 grads_by_inp_gat = 0
                                 grads_gat = 0
                                 for j in range(1,1+10):
-                                    if organism == 'mouse' and i==9:
-                                        iv2 = i+10
+                                    if organism == 'mouse' and j==9:
+                                        iv2 = j+10
                                         it2 = 1
-                                    elif organism == 'mouse' and i==10:
+                                    elif organism == 'mouse' and j==10:
                                         iv2 = 1
                                         it2 = 2
                                     else:
-                                        iv2 = i+10
-                                        it2 = i+11
-                                    valid_chr_list = [i, iv2]
-                                    test_chr_list = [i+1, it2]
+                                        iv2 = j+10
+                                        it2 = j+11
+                                    valid_chr_list = [j, iv2]
+                                    test_chr_list = [j+1, it2]
 
                                     test_chr_str = [str(i) for i in test_chr_list]
                                     test_chr_str = ','.join(test_chr_str)
