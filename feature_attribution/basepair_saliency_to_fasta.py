@@ -1,5 +1,7 @@
 from __future__ import division
 import sys
+
+from torch import device
 sys.path.insert(0,'../train')
 
 #from keras.callbacks import EarlyStopping, TensorBoard, ModelCheckpoint
@@ -27,9 +29,12 @@ from collections import Counter
 import pysam
 import seaborn as sns
 
+# Set CPU as available physical device
+tf.config.experimental.set_visible_devices([], 'GPU')
+
 
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
-assay_type = 'HiChIP'                           # HiChIP, HiC, MicroC, HiCAR
+assay_type = 'MicroC'                           # HiChIP, HiC, MicroC, HiCAR
 qval = .1                                       # 0.1, 0.01, 0.001
 if qval == 0.1:
     fdr = '1'
@@ -40,20 +45,21 @@ elif qval == 0.001:
 
 batch_size = 1                # batch size
 organism = 'human'            # human/mouse
-genome = 'hg19'               # hg19
+genome = 'hg38'               # hg19/hg38
 saliency_method = 'saliency'  # saliency
 write_bw = False              # write the predicted CAGE to bigwig files
 load_fa = False               # load feature attribution numpy files
-cell_line = 'K562'              # GM12878/K562
+cell_line = 'hESC'              # GM12878/K562/hESC
 
 # Top 100 best predicted genes using Seq-GraphReg
 df = pd.read_csv(data_path+'/results/csv/cage_prediction/seq_models/cage_predictions_seq_e2e_models_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'.csv', sep='\t')
-df = df[((df['true_cage']>=100) & (df['n_tss']==1) & (df['n_contact']>=10) & (np.abs(df['delta_nll']) > 300) & ((df['nll_seq_graphreg'] < 300)))].reset_index(drop=True)
+df = df[((df['true_cage']>=100) & (df['n_tss']==1) & (df['n_contact']>=5) & (np.abs(df['delta_nll']) > 300) & ((df['nll_seq_graphreg'] < 300)))].reset_index(drop=True)
 df = df.sort_values(by=['delta_nll'], ascending=False).reset_index(drop=True)
 df = df.iloc[:100]
 gene_names_list = df['genes'].values
 chr_list = df['chr'].values
 gene_tss_list = df['tss'].values
+gene_contact_list = df['n_contact'].values
 print(len(gene_names_list), gene_names_list)
 print(len(chr_list), chr_list)
 print(len(gene_tss_list), gene_tss_list)
@@ -347,9 +353,13 @@ else:
 
 #################### load model ####################
 
-CNN_motifs_fasta = open(data_path+'/results/fimo/Seq-CNN_close_motifs_'+cell_line[0]+'.fasta', "w")
-GraphReg_motifs_fasta = open(data_path+'/results/fimo/Seq-GraphReg_close_motifs_'+cell_line[0]+'.fasta', "w")
-fasta_open = pysam.Fastafile(data_path+'/data/genome/hg19.ml.fa')
+CNN_motifs_fasta = open(data_path+'/results/fimo/Seq-CNN_distal_motifs_'+cell_line[0]+'.fasta', "w")
+GraphReg_motifs_fasta = open(data_path+'/results/fimo/Seq-GraphReg_distal_motifs_'+cell_line[0]+'.fasta', "w")
+
+if cell_line[0] in ['K562', 'GM12878']:
+    fasta_open = pysam.Fastafile(data_path+'/data/genome/hg19.ml.fa')
+elif cell_line[0] == 'hESC':
+    fasta_open = pysam.Fastafile(data_path+'/data/genome/GRCh38.primary_assembly.genome.fa')
 
 for num, cell_line in enumerate(cell_line):
     for i, chrm in enumerate(chr_list):
@@ -377,41 +387,33 @@ for num, cell_line in enumerate(cell_line):
                             if load_fa == False:
                                 explain_output_idx_cnn = np.floor((gene_tss_list[i]-pos[0])/5000).astype('int64')
                                 print('explain_output_idx_cnn: ', explain_output_idx_cnn)
-                                grads_cnn = 0
-                                grads_by_inp_cnn = 0
-                                for j in range(1,1+10):
-                                    if organism == 'mouse' and j==9:
-                                        iv2 = j+10
-                                        it2 = 1
-                                    elif organism == 'mouse' and j==10:
-                                        iv2 = 1
-                                        it2 = 2
-                                    else:
-                                        iv2 = j+10
-                                        it2 = j+11
-                                    valid_chr_list = [j, iv2]
-                                    test_chr_list = [j+1, it2]
 
-                                    test_chr_str = [str(i) for i in test_chr_list]
-                                    test_chr_str = ','.join(test_chr_str)
-                                    valid_chr_str = [str(i) for i in valid_chr_list]
-                                    valid_chr_str = ','.join(valid_chr_str)
+                                if int(chrm[3:]) <= 11:
+                                    test_chr_list = [int(chrm[3:]), int(chrm[3:])+10]
+                                    valid_chr_list = [int(chrm[3:])-1, int(chrm[3:])+9]
+                                elif int(chrm[3:]) > 11:
+                                    test_chr_list = [int(chrm[3:])-10, int(chrm[3:])]
+                                    valid_chr_list = [int(chrm[3:])-11, int(chrm[3:])-1]
 
-                                    model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-                                    model_cnn = tf.keras.models.load_model(model_name_cnn)
-                                    model_cnn.trainable = False
-                                    model_cnn._name = 'Seq-CNN'
+                                test_chr_str = [str(i) for i in test_chr_list]
+                                test_chr_str = ','.join(test_chr_str)
+                                valid_chr_str = [str(i) for i in valid_chr_list]
+                                valid_chr_str = ','.join(valid_chr_str)
 
-                                    with tf.GradientTape(persistent=True) as tape:
-                                        inp = seq
-                                        tape.watch(inp)
-                                        preds, _, _, _, h  = model_cnn(inp)
-                                        #target_cnn = preds[:, explain_output_idx_cnn-1]+preds[:, explain_output_idx_cnn]+preds[:, explain_output_idx_cnn+1]
-                                        target_cnn = preds[:, explain_output_idx_cnn]
-                                    grads_by_inp_cnn = grads_by_inp_cnn + inp * tape.gradient(target_cnn, inp)
-                                    grads_cnn = grads_cnn + tape.gradient(target_cnn, inp)
-                                grads_by_inp_cnn = grads_by_inp_cnn/10
-                                grads_cnn = grads_cnn/10
+                                model_name_cnn = data_path+'/models/'+cell_line+'/Seq-CNN_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_cnn = tf.keras.models.load_model(model_name_cnn)
+                                model_cnn.trainable = False
+                                model_cnn._name = 'Seq-CNN'
+
+                                with tf.GradientTape(persistent=True) as tape:
+                                    inp = seq
+                                    tape.watch(inp)
+                                    preds, _, _, _, h  = model_cnn(inp)
+                                    #target_cnn = preds[:, explain_output_idx_cnn-1]+preds[:, explain_output_idx_cnn]+preds[:, explain_output_idx_cnn+1]
+                                    target_cnn = preds[:, explain_output_idx_cnn]
+                                grads_by_inp_cnn = inp * tape.gradient(target_cnn, inp)
+                                grads_cnn = tape.gradient(target_cnn, inp)
+
                                 np.save(data_path+'/results/numpy/feature_attribution/Seq-CNN_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_by_inp_cnn)
                                 np.save(data_path+'/results/numpy/feature_attribution/Seq-CNN_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_cnn)
                             else:
@@ -429,41 +431,33 @@ for num, cell_line in enumerate(cell_line):
                             if load_fa == False:
                                 explain_output_idx_gat = np.floor((gene_tss_list[i]-pos[0])/5000).astype('int64')
                                 print('explain_output_idx_gat: ', explain_output_idx_gat)
-                                grads_by_inp_gat = 0
-                                grads_gat = 0
-                                for j in range(1,1+10):
-                                    if organism == 'mouse' and j==9:
-                                        iv2 = j+10
-                                        it2 = 1
-                                    elif organism == 'mouse' and j==10:
-                                        iv2 = 1
-                                        it2 = 2
-                                    else:
-                                        iv2 = j+10
-                                        it2 = j+11
-                                    valid_chr_list = [j, iv2]
-                                    test_chr_list = [j+1, it2]
 
-                                    test_chr_str = [str(i) for i in test_chr_list]
-                                    test_chr_str = ','.join(test_chr_str)
-                                    valid_chr_str = [str(i) for i in valid_chr_list]
-                                    valid_chr_str = ','.join(valid_chr_str)
+                                if int(chrm[3:]) <= 11:
+                                    test_chr_list = [int(chrm[3:]), int(chrm[3:])+10]
+                                    valid_chr_list = [int(chrm[3:])-1, int(chrm[3:])+9]
+                                elif int(chrm[3:]) > 11:
+                                    test_chr_list = [int(chrm[3:])-10, int(chrm[3:])]
+                                    valid_chr_list = [int(chrm[3:])-11, int(chrm[3:])-1]
 
-                                    model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
-                                    model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
-                                    model_gat.trainable = False
-                                    model_gat._name = 'Seq-GraphReg'
+                                test_chr_str = [str(i) for i in test_chr_list]
+                                test_chr_str = ','.join(test_chr_str)
+                                valid_chr_str = [str(i) for i in valid_chr_list]
+                                valid_chr_str = ','.join(valid_chr_str)
 
-                                    with tf.GradientTape(persistent=True) as tape:
-                                        inp = seq
-                                        tape.watch(inp)
-                                        preds, _, _, _, h, _ = model_gat([inp, adj])
-                                        target_gat = preds[:, explain_output_idx_gat-1]+preds[:, explain_output_idx_gat]+preds[:, explain_output_idx_gat+1]
-                                        #target_gat = preds[:, explain_output_idx_gat]
-                                    grads_by_inp_gat = grads_by_inp_gat + inp * tape.gradient(target_gat, inp)
-                                    grads_gat = grads_gat + tape.gradient(target_gat, inp)
-                                grads_by_inp_gat = grads_by_inp_gat/10
-                                grads_gat = grads_gat/10
+                                model_name_gat = data_path+'/models/'+cell_line+'/Seq-GraphReg_e2e_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
+                                model_gat.trainable = False
+                                model_gat._name = 'Seq-GraphReg'
+
+                                with tf.GradientTape(persistent=True) as tape:
+                                    inp = seq
+                                    tape.watch(inp)
+                                    preds, _, _, _, h, _ = model_gat([inp, adj])
+                                    #target_gat = preds[:, explain_output_idx_gat-1]+preds[:, explain_output_idx_gat]+preds[:, explain_output_idx_gat+1]
+                                    target_gat = preds[:, explain_output_idx_gat]
+                                grads_by_inp_gat = inp * tape.gradient(target_gat, inp)
+                                grads_gat = tape.gradient(target_gat, inp)
+
                                 np.save(data_path+'/results/numpy/feature_attribution/Seq-GraphReg_BP_grad_by_inp'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_by_inp_gat)
                                 np.save(data_path+'/results/numpy/feature_attribution/Seq-GraphReg_BP_grad'+'_'+cell_line+'_'+gene_names_list[i]+'.npy', grads_gat)
                             else:
@@ -476,7 +470,7 @@ for num, cell_line in enumerate(cell_line):
 
                         ########## Motif Analysis ##########
                         cnt = -1
-                        distal_thr = 50000
+                        distal_thr = 20000
                         box_gat_mean = np.zeros(600000)
                         box_cnn_mean = np.zeros(600000)
                         start_pos = np.zeros(600000)
@@ -489,17 +483,18 @@ for num, cell_line in enumerate(cell_line):
                             start_pos[cnt] = j
 
                         start_pos = start_pos.astype(np.int64)
-                        idx_cnn = np.where(np.logical_and(np.abs(pos[0]+start_pos+10 - gene_tss_list[i]) < distal_thr, np.abs(box_cnn_mean) > 0))[0]
-                        idx_gat = np.where(np.logical_and(np.abs(pos[0]+start_pos+10 - gene_tss_list[i]) < distal_thr, np.abs(box_gat_mean) > 0))[0]
+                        idx_cnn = np.where(np.logical_and(np.abs(pos[0]+start_pos+10 - gene_tss_list[i]) > distal_thr, np.abs(box_cnn_mean) > 0))[0]
+                        idx_gat = np.where(np.logical_and(np.abs(pos[0]+start_pos+10 - gene_tss_list[i]) > distal_thr, np.abs(box_gat_mean) > 0))[0]
                         start_pos_idx_cnn = start_pos[idx_cnn]
                         start_pos_idx_gat = start_pos[idx_gat]
                         box_cnn_mean_idx = box_cnn_mean[idx_cnn]
                         box_gat_mean_idx = box_gat_mean[idx_gat]
 
-                        idx_sig_cnn = np.argsort(box_cnn_mean_idx)[-100:]
-                        idx_sig_gat = np.argsort(box_gat_mean_idx)[-100:]
-                        idx_non_sig_cnn = np.argsort(np.abs(box_cnn_mean_idx))[0:100]
-                        idx_non_sig_gat = np.argsort(np.abs(box_gat_mean_idx))[0:100]
+                        num_top_scores = 25*gene_contact_list[i] # top 5% : (5000/10)*N/20 = 25N (N: number of contacts)
+                        idx_sig_cnn = np.argsort(np.abs(box_cnn_mean_idx))[-num_top_scores:]
+                        idx_sig_gat = np.argsort(np.abs(box_gat_mean_idx))[-num_top_scores:]
+                        idx_non_sig_cnn = np.argsort(np.abs(box_cnn_mean_idx))[0:num_top_scores]
+                        idx_non_sig_gat = np.argsort(np.abs(box_gat_mean_idx))[0:num_top_scores]
                         print('box_cnn_mean_idx significant: ', box_cnn_mean_idx[idx_sig_cnn])
                         print('box_cnn_mean_idx non-significant: ', box_cnn_mean_idx[idx_non_sig_cnn])
                         print('box_gat_mean_idx significant: ', box_gat_mean_idx[idx_sig_gat])

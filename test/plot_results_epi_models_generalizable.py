@@ -200,10 +200,10 @@ data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 qval_dict = {'1': 0.1, '01': 0.01, '001': 0.001}
 df_R_NLL_all = pd.DataFrame(columns=['Cell', 'Method', 'Genes', 'Number of Genes', '3D Data', 'FDR', 'R', 'NLL'])
 
-cell_line_train_list = ['K562', 'GM12878']
-cell_line_test_list = ['GM12878', 'K562']
+cell_line_train_list = ['K562', 'K562', 'K562', 'GM12878', 'GM12878', 'GM12878', 'hESC', 'hESC', 'hESC']
+cell_line_test_list = ['K562', 'GM12878', 'hESC', 'GM12878', 'K562', 'hESC', 'hESC', 'GM12878', 'K562']
 
-for c in range(2):
+for c in range(len(cell_line_train_list)):
     cell_line_train = cell_line_train_list[c]
     cell_line_test = cell_line_test_list[c]
 
@@ -223,10 +223,10 @@ for c in range(2):
 
     for assay_type_train in assay_type_train_list:
         for assay_type_test in assay_type_test_list:
-            for fdr_train in ['1', '01', '001']:
-                for fdr_test in ['1', '01', '001']:
+            for fdr_train in ['1']:
+                for fdr_test in ['1']:
 
-                    df = pd.read_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/cage_predictions_epi_models_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep='\t')
+                    df = pd.read_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/cage_predictions_epi_models_RPGC_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep='\t')
                     df['pred_cage_epi_graphreg_log2'] = np.log2(df['pred_cage_epi_graphreg']+1)
                     df['pred_cage_epi_cnn_log2'] = np.log2(df['pred_cage_epi_cnn']+1)
                     df['true_cage_log2'] = np.log2(df['true_cage']+1)
@@ -323,47 +323,47 @@ for c in range(2):
 
     # R
     sns.set_style("darkgrid")
-    g = sns.catplot(x="FDR", y="R",
-                hue="Method", row='3D Data', col="Genes",
+    g = sns.catplot(x="3D Data", y="R",
+                hue="Method", col="Genes",
                 data=df_R_NLL, kind="swarm", palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"},
                 height=3, aspect=2, sharey=False)
     loc, labels = plt.xticks()
     g.set_xticklabels(labels, rotation=45)
-    g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_R_'+cell_line_train+'_to_'+cell_line_test+'_check_3D_and_fdr.pdf', bbox_inches='tight')
+    g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_R_'+cell_line_train+'_to_'+cell_line_test+'_check_3D_RPGC.pdf', bbox_inches='tight')
     g.fig.clf()
 
     # NLL
-    g = sns.catplot(x="FDR", y="NLL",
-                hue="Method", row='3D Data', col="Genes",
+    g = sns.catplot(x="3D Data", y="NLL",
+                hue="Method", col="Genes",
                 data=df_R_NLL, kind="swarm", palette={"Epi-GraphReg": "orange", "Epi-CNN": "deepskyblue"},
                 height=3, aspect=2, sharey=False)
     loc, labels = plt.xticks()
     g.set_xticklabels(labels, rotation=45)
-    g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_NLL_'+cell_line_train+'_to_'+cell_line_test+'_check_3D_and_fdr.pdf', bbox_inches='tight')
+    g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_NLL_'+cell_line_train+'_to_'+cell_line_test+'_check_3D_RPGC.pdf', bbox_inches='tight')
     g.fig.clf()
 
     # Number of genes
     df_R_NLL_remove_cnn = df_R_NLL[df_R_NLL['Method']=='Epi-GraphReg']
-    g = sns.catplot(x="FDR", y="Number of Genes",
-                row='3D Data', col="Genes",
+    g = sns.catplot(x="3D Data", y="Number of Genes",
+                col="Genes",
                 data=df_R_NLL_remove_cnn, kind="bar", #palette={0.1: "blue", 0.01: "blue", 0.001: "blue"},
                 height=3, aspect=2, sharey=True)
     loc, labels = plt.xticks()
     g.set_xticklabels(labels, rotation=45)
-    g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_n_genes_'+cell_line_train+'_to_'+cell_line_test+'.pdf', bbox_inches='tight')
+    g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_n_genes_'+cell_line_train+'_to_'+cell_line_test+'_RPGC.pdf', bbox_inches='tight')
     g.fig.clf()
 
 
 
 # Only GraphReg
 df_only_GR = df_R_NLL_all[(df_R_NLL_all['Method'] == 'Epi-GraphReg') & (df_R_NLL_all['Genes'] != 'Interacting')]
-g = sns.catplot(x="FDR", y="R", hue="3D Data",
+g = sns.catplot(x="3D Data", y="R", hue="Method",
             row='Genes', col="Cell",
             data=df_only_GR, kind="swarm",
             height=3, aspect=2, sharey=False)
 loc, labels = plt.xticks()
 g.set_xticklabels(labels, rotation=45)
-g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_R_only_graphreg_check_3D_and_fdr.pdf', bbox_inches='tight')
+g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_R_only_graphreg_check_3D_RPGC.pdf', bbox_inches='tight')
 g.fig.clf()
 
 g = sns.catplot(x="FDR", y="NLL", hue="3D Data",
@@ -372,7 +372,7 @@ g = sns.catplot(x="FDR", y="NLL", hue="3D Data",
             height=3, aspect=2, sharey=False)
 loc, labels = plt.xticks()
 g.set_xticklabels(labels, rotation=45)
-g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_NLL_only_graphreg_check_3D_and_fdr.pdf', bbox_inches='tight')
+g.fig.savefig('../figs/Epi-models/final/cell_to_cell/swarmplot_NLL_only_graphreg_check_3D_RPGC.pdf', bbox_inches='tight')
 g.fig.clf()
 
 

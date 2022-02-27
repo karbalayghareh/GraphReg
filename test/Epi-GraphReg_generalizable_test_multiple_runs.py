@@ -141,8 +141,8 @@ def read_tf_record_1shot(iterator):
             pos = np.arange(start, end, 100).astype(int)
 
         Y = next_datum['Y']
-        Y = tf.reshape(Y, [batch_size, 3*T, b])
-        Y = tf.reduce_sum(Y, axis=2)
+        #Y = tf.reshape(Y, [batch_size, 3*T, b])
+        #Y = tf.reduce_sum(Y, axis=2)
         Y = tf.reshape(Y, [batch_size, 3*T])
 
     else:
@@ -226,7 +226,7 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
         
     for i in chr_list:
         #print('chr :', i)
-        file_name = data_path+'/data/tfrecords_norm/tfr_epi_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'_chr'+str(i)+'.tfr'
+        file_name = data_path+'/data/tfrecords/tfr_epi_RPGC_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'_chr'+str(i)+'.tfr'
         iterator = dataset_iterator(file_name, batch_size)
         tss_pos = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_chr'+str(i)+'.npy', allow_pickle=True)
         gene_names_all = np.load(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_chr'+str(i)+'.npy', allow_pickle=True)
@@ -362,8 +362,8 @@ def calculate_loss(model_gat, model_cnn, chr_list, valid_chr, test_chr, cell_lin
 
 ############################################################# load model #############################################################
 
-cell_line_train_list = ['K562', 'GM12878']
-cell_line_test_list = ['GM12878', 'K562']
+cell_line_train_list = ['K562', 'K562', 'K562', 'GM12878', 'GM12878', 'GM12878', 'hESC', 'hESC', 'hESC']
+cell_line_test_list = ['K562', 'GM12878', 'hESC', 'GM12878', 'K562', 'hESC', 'hESC', 'GM12878', 'K562']
 batch_size = 1
 organism = 'human'
 write_bw = False
@@ -385,7 +385,7 @@ def add_label(violin, labels, label):
     color = violin["bodies"][0].get_facecolor().flatten()
     labels.append((mpatches.Patch(color=color), label))
 
-for c in range(2):
+for c in range(len(cell_line_train_list)):
     cell_line_train = cell_line_train_list[c]
     cell_line_test = cell_line_test_list[c]
     if cell_line_test == 'GM12878' or cell_line_test == 'K562':
@@ -402,8 +402,8 @@ for c in range(2):
 
     for assay_type_train in assay_type_train_list:
         for assay_type_test in assay_type_test_list:
-            for fdr_train in ['1', '01', '001']:
-                for fdr_test in ['1', '01', '001']:
+            for fdr_train in ['1']:
+                for fdr_test in ['1']:
                     print('c: {}, assay_type_train: {}, assay_type_test: {}, fdr_train: {}, fdr_test: {}'.format(c,assay_type_train,assay_type_test,fdr_train,fdr_test))
                     if prediction == True:
                         valid_loss_gat = np.zeros([10,4])
@@ -434,13 +434,13 @@ for c in range(2):
                                 y_hat_gene_cnn = np.load(data_path+'/results/numpy/cage_prediction/Epi-CNN_predicted_cage_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
                                 n_contacts = np.load(data_path+'/results/numpy/cage_prediction/n_contacts_'+cell_line_train+'_to_'+cell_line_test+'_'+str(i)+'.npy')
                             else:
-                                model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_generalizable_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_name_gat = data_path+'/models/'+cell_line_train+'/Epi-GraphReg_RPGC_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                 model_gat = tf.keras.models.load_model(model_name_gat, custom_objects={'GraphAttention': GraphAttention})
                                 model_gat.trainable = False
                                 model_gat._name = 'Epi-GraphReg'
                                 #model_gat.summary()
 
-                                model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_generalizable_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
+                                model_name = data_path+'/models/'+cell_line_train+'/Epi-CNN_RPGC_'+cell_line_train+'_valid_chr_'+valid_chr_str+'_test_chr_'+test_chr_str+'.h5'
                                 model_cnn = tf.keras.models.load_model(model_name)
                                 model_cnn.trainable = False
                                 model_cnn._name = 'Epi-CNN'
@@ -526,7 +526,7 @@ for c in range(2):
                         #print('Wilcoxon SP: ', w_sp, ' , p_values: ', p_sp)
 
                         # write the prediction to csv file
-                        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/cage_predictions_epi_models_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)
+                        df_all_predictions.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/cage_predictions_epi_models_RPGC_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)
 
                         ##### write R and NLL for different 3D graphs and FDRs #####
                         if save_R_NLL_to_csv:
@@ -573,7 +573,7 @@ for c in range(2):
                                             'n_gene_test': n_gene[i-1,2], '3D_data_train': assay_type_train, 'FDR_train': fdr_dict[fdr_train], '3D_data_test': assay_type_test, 'FDR_test': fdr_dict[fdr_test], 
                                             'R': valid_rho_cnn[i-1,2], 'NLL': valid_loss_cnn[i-1,2]}, ignore_index=True)
 
-                            df.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/R_NLL_epi_models_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)
+                            df.to_csv(data_path+'/results/csv/cage_prediction/cell_to_cell/R_NLL_epi_models_RPGC_'+cell_line_train+'_'+assay_type_train+'_FDR_'+fdr_train+'_to_'+cell_line_test+'_'+assay_type_test+'_FDR_'+fdr_test+'.csv', sep="\t", index=False)
 
 
                         ##### plot violin plots #####
