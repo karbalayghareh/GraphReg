@@ -14,5 +14,9 @@ This repository contains all the codes for training **GraphReg** models and all 
 ## Data preparation
 
 ### 1D data (epigenomic)
-We need a coverage file `bigwig` for each epigenomic track. If the cell types exist in [ENCODE portal](https://www.encodeproject.org/), you can use the processed `bigwig` files. If you are interested in applying **GraphReg** to your own data, you should have alignment file `BAM`.
+We need a coverage file `bigwig` for each epigenomic track. We have used two different approaches to generate `bigwig` files form alignment `BAM` files:
+
+- `bam_cov.py` from [Basenji](https://github.com/calico/basenji).
+
+- `bamCoverage` from [deepTools](https://deeptools.readthedocs.io/en/develop/content/tools/bamCoverage.html).
 
