@@ -6,13 +6,13 @@
 
 - What are the cis regulatory elements of the genes in each cell type? Which candidate enhancers are functional and play a role in gene regulation?
 
-- Which TF motifs are important for gene regulation? How do distal TF motifs regulate their target genes?
+- Which transcription factor (TF) motifs are important for gene regulation? How do distal TF motifs regulate their target genes?
 
 
-This repository contains all the codes for training **GraphReg** models and all the downstream analyses for gene expression prediction, enhancer validation, and transcription factor (TF) motifs on regulating their target genes. 
+This repository contains all the codes for training **GraphReg** models and all the downstream analyses for gene expression prediction, enhancer validation, and discovering regulating TF motifs.
 
 ## Data preparation
 
 ### 1D data (epigenomic)
-We need a coverage `bigwig' file for each epigenomic track.
+We need a coverage file `bigwig` for each epigenomic track. If the cell types exist in [ENCODE portal](https://www.encodeproject.org/), you can use the processed `bigwig` files. If you are interested in applying **GraphReg** to your own data, you should have alignment file `BAM`.
 
