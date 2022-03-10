@@ -45,6 +45,6 @@ Now that we have generated TFRecord files, we are ready to train the models.
 
 Use [`Epi-GraphReg.py`](https://github.com/karbalayghareh/GraphReg/blob/master/train/Epi-GraphReg.py) to train the **Epi-GraphReg** models. You should specify the validation and test chromosomes. The remaining autosomal chromosomes are used for training. For example:
 ```
-python Epi-GraphReg.py -c K562 -p $data_path -a HiChIP -g 1 -q .1 -v 3,13 -t 4,14
+python Epi-GraphReg.py -c K562 -p $data_path -a HiChIP -g 1 -q 0.1 -v 3,13 -t 4,14
 ```
-trains 
+trains **Epi-GraphReg** on cell line K562, using graphs extracted from HiChIP with FDR (q-value) cutoff 0.1, in generalizble mode (`-g 1`), with Chrs 3 and 13 as the  validation and Chrs 4 and 14 as the test chromosomes. `$data_path` is the directory where TFRecords have been stored. Training on generalizble mode means that the model uses the normalized epigenomic coverage tracks (for example the ones obtained from RPGC normalization) so that the trained model can be used in other cell types as well.
