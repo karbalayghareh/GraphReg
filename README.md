@@ -20,5 +20,5 @@ We need a coverage file `bigwig` for each epigenomic track. We have used some us
 
 - [`bam_cov.py`](https://github.com/karbalayghareh/GraphReg/blob/master/utils/bam_cov.py) from Basenji.
 
-- `bamCoverage` from [deepTools](https://deeptools.readthedocs.io/en/develop/content/tools/bamCoverage.html).
+- [`bamCoverage`]((https://deeptools.readthedocs.io/en/develop/content/tools/bamCoverage.html)) from [deepTools](https://deeptools.readthedocs.io/en/develop/index.html).
 
