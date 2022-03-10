@@ -9,5 +9,10 @@
 - Which TF motifs are important for gene regulation? How do distal TF motifs regulate their target genes?
 
 
-This repository contains all the codes for training `GraphReg` models and all the downstream analyses for gene expression prediction, enhancer validation, and the role of transcription factor (TF) motifs on regulating their target genes. 
+This repository contains all the codes for training **GraphReg** models and all the downstream analyses for gene expression prediction, enhancer validation, and transcription factor (TF) motifs on regulating their target genes. 
+
+## Data preparation
+
+### 1D data (epigenomic)
+We need a coverage `bigwig' file for each epigenomic track.
 
