@@ -43,4 +43,8 @@ Now that we have generated TFRecord files, we are ready to train the models.
 
 ### Epi-GraphReg
 
-Use [`Epi-GraphReg.py`](https://github.com/karbalayghareh/GraphReg/tree/master/train) to train the **Epi-GraphReg** models. 
+Use [`Epi-GraphReg.py`](https://github.com/karbalayghareh/GraphReg/blob/master/train/Epi-GraphReg.py) to train the **Epi-GraphReg** models. You should specify the validation and test chromosomes. The remaining autosomal chromosomes are used for training. For example:
+```
+python Epi-GraphReg.py -c K562 -p $data_path -a HiChIP -g 1 -q .1 -v 3,13 -t 4,14
+```
+trains 
