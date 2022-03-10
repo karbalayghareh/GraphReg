@@ -16,9 +16,9 @@ This repository contains all the codes for training **GraphReg** models and all 
 ### 1D data (epigenomic)
 We need a coverage file `bigwig` for each epigenomic track. We have used some useful functions from [Basenji](https://github.com/calico/basenji) for reading and writing the `bigwig` files, which can be found in [utils](https://github.com/karbalayghareh/GraphReg/tree/master/utils). 
 
- We have used two different approaches to generate `bigwig` files from alignment `BAM` files:
+ We can use two different approaches to generate `bigwig` files from alignment `BAM` files:
 
 - [`bam_cov.py`](https://github.com/karbalayghareh/GraphReg/blob/master/utils/bam_cov.py) from Basenji.
 
-- [`bamCoverage`]((https://deeptools.readthedocs.io/en/develop/content/tools/bamCoverage.html)) from [deepTools](https://deeptools.readthedocs.io/en/develop/index.html).
+- [`bamCoverage`](https://deeptools.readthedocs.io/en/develop/content/tools/bamCoverage.html) from [deepTools](https://deeptools.readthedocs.io/en/develop/index.html).
 
