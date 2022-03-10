@@ -37,3 +37,10 @@ We need to have a `BED` file for TSS annotations. This file could be extracted f
 
 The TFRecord files are slightly different for **Epi-GraphReg** and **Seq-GraphReg** models: (1) TFRecords for **Seq-GraphReg** also contain one-hot-coded DNA sequences of the size `6,000,000 x 4`, as the DNA sequence is an input for these models, (2) The epigenomic signals for **Epi-GraphReg** undergo an extra log-normalization, via function `log2(x+1)`, to reduce their dynamic ranges, as they are inputs in  **Epi-GraphReg** models.
 
+Now that we have generated TFRecord files, we are ready to train the models.
+
+## Training GraphReg models
+
+### Epi-GraphReg
+
+Use [`Epi-GraphReg.py`](https://github.com/karbalayghareh/GraphReg/tree/master/train) to train the **Epi-GraphReg** models. 
