@@ -8,7 +8,6 @@ __pycache__/
 # Ignore these files
 *.sh
 *.pdf
-*.png
 *.log
 *.pyc
 
