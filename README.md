@@ -77,3 +77,6 @@ first loads the epigenomic CNNs trained in step (1) on cell line K562 without di
 
 ## Testing GraphReg models
 
+After training the **GraphReg** models, it is time to use them to predict gene expression (CAGE) in held-out test chromosomes or cell types. All the scripts for saving the predictions and plotting the results are in [test](https://github.com/karbalayghareh/GraphReg/tree/master/test). We first run the prediction scripts (explained below) to save the CAGE predictions and all meta data (such as number of enhancer-promoter interactions, name of the genes, TSS positions, etc.) for the TSS bins in the test chromosomes in a `csv` file. Then we we run the plotting scripts (which call the saved `csv` files) to plot the results. 
+
+- For **Epi-GraphReg**, run [Epi-GraphReg_test_multiple_runs.py](https://github.com/karbalayghareh/GraphReg/blob/master/test/Epi-GraphReg_test_multiple_runs.py) to save predictions in the test chromosomes, and run [plot_results_epi_models.py](https://github.com/karbalayghareh/GraphReg/blob/master/test/plot_results_epi_models.py) to plot the results. 
