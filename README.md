@@ -86,3 +86,9 @@ After training the **GraphReg** models, it is time to use them to predict gene e
 - For end to end **Seq-GraphReg**, run [Seq-GraphReg_e2e_test_multiple_runs.py](https://github.com/karbalayghareh/GraphReg/blob/master/test/Seq-GraphReg_e2e_test_multiple_runs.py) to save predictions in the test chromosomes, and run [plot_results_seq_models.py](https://github.com/karbalayghareh/GraphReg/blob/master/test/plot_results_seq_models.py) to plot the results.
 
 - For separate **Seq-GraphReg**, run [Seq-GraphReg_test_multiple_runs.py](https://github.com/karbalayghareh/GraphReg/blob/master/test/Seq-GraphReg_test_multiple_runs.py) to save predictions in the test chromosomes, and run [plot_results_seq_models.py](https://github.com/karbalayghareh/GraphReg/blob/master/test/plot_results_seq_models.py) to plot the results.
+
+## Feature attributions of GraphReg models
+
+### Enhancer validation
+
+We can use feature attributions of **GraphReg** models to find out which regions are important for gene expression, meaning that they could be considered as the enhancers of any target gene. To validate enhancer predictions, we need experimental enhancer perturbation data. We have used two such datasets in the K562 cell line: (1) CRISPRi FlowFISH from [this](https://www.nature.com/articles/s41588-019-0538-0) paper and (2) Targeted Perturb-seq (TAP-seq) from [this](https://www.nature.com/articles/s41592-020-0837-5) paper. We can use the feature attributions of both **Epi-GraphReg** and **Seq-GraphReg** models.

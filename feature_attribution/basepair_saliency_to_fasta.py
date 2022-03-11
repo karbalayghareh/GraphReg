@@ -65,36 +65,6 @@ print(len(chr_list), chr_list)
 print(len(gene_tss_list), gene_tss_list)
 cell_line = [cell_line]
 
-# if cell == 'GM12878':
-#     # GM12878
-#     df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
-#     df_GM12878 = df[(df['M'] >= 1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
-#     df_GM12878 = df_GM12878.sort_values(by=['M','A'], ascending=False)
-#     df_GM12878 = df_GM12878.reset_index(drop=True)
-#     df_GM12878 = df_GM12878.iloc[0:50]   # top 50 genes for GM12878
-#     gene_names_list = df_GM12878['gene'].values
-#     chr_list = df_GM12878['chr'].values
-#     gene_tss_list = df_GM12878['tss'].values
-#     print(len(gene_names_list), gene_names_list)
-#     print(len(chr_list), chr_list)
-#     print(len(gene_tss_list), gene_tss_list)
-#     cell_line = ['GM12878']
-
-# elif cell == 'K562':
-#     # K562
-#     df = pd.read_csv(data_path+'/data/csv/CAGE_GM12878_K562.csv')
-#     df_K562 = df[(df['M'] <= -1) & (df['A'] >= 8) & (df['min(n_EP)']>0)]
-#     df_K562 = df_K562.sort_values(by=['M','A'], ascending=[True, False])
-#     df_K562 = df_K562.reset_index(drop=True)
-#     df_K562 = df_K562.iloc[0:50]   # top 50 genes for K562
-#     gene_names_list = df_K562['gene'].values
-#     chr_list = df_K562['chr'].values
-#     gene_tss_list = df_K562['tss'].values
-#     print(len(gene_names_list), gene_names_list)
-#     print(len(chr_list), chr_list)
-#     print(len(gene_tss_list), gene_tss_list)
-#     cell_line = ['K562'] 
-
 def log2(x):
   numerator = tf.math.log(x)
   denominator = tf.math.log(tf.constant(2.))
