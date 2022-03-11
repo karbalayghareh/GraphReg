@@ -55,3 +55,8 @@ The **Seq-GraphReg** models can be trained in two ways: (1) end to end, (2) sepa
 
 #### End to end training
 
+Use [Seq-GraphReg_e2e.py](https://github.com/karbalayghareh/GraphReg/blob/master/train/Seq-GraphReg_e2e.py) to train end to end **Seq-GraphReg** models. You should specify the validation and test chromosomes. The remaining autosomal chromosomes are used for training. For example:
+```
+python Seq-GraphReg_e2e.py -c K562 -p $data_path -a HiChIP -q .1 -v 3,13 -t 4,14
+```
+trains end to end **Seq-GraphReg** on cell line K562, using graphs extracted from HiChIP with FDR (q-value) cutoff 0.1 with Chrs 3 and 13 as the validation and Chrs 4 and 14 as the test chromosomes.
