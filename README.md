@@ -67,10 +67,10 @@ trains end to end **Seq-GraphReg** on cell line K562, using graphs extracted fro
 ```
 python Seq-CNN_base.py -c K562 -p $data_path -v 3,13 -t 4,14
 ```
-trains a CNN model on cell line K562 with Chrs 3 and 13 as the validation and Chrs 4 and 14 as the test chromosomes. We have implemented four flavors of such epigenomic CNN models: with/without dilation layers, and with/without FFT (Fast Fourier Transform) loss (so overall four models). The idea of adding FFT attibution prior is borrowed from [here](https://proceedings.neurips.cc/paper/2020/file/1487987e862c44b91a0296cf3866387e-Paper.pdf) to improve the interpretability of the deep learning models using DNA sequences.
+trains a CNN model on cell line K562 with Chrs 3 and 13 as the validation and Chrs 4 and 14 as the test chromosomes. We have implemented four flavors of such epigenomic CNN models: with/without dilation layers, and with/without FFT (Fast Fourier Transform) loss (so overall four models), which can be found [here](https://github.com/karbalayghareh/GraphReg/tree/master/train). The idea of adding FFT attibution prior is borrowed from [here](https://proceedings.neurips.cc/paper/2020/file/1487987e862c44b91a0296cf3866387e-Paper.pdf) to improve the interpretability of the deep learning models using DNA sequences.
 
 2- Use [Seq-GraphReg.py](https://github.com/karbalayghareh/GraphReg/blob/master/train/Seq-GraphReg.py) to train the graph attention networks of **Seq-GraphReg** to predict the CAGE values. For example:
 ```
 python Seq-GraphReg.py -c K562 -p $data_path -a HiChIP -q 0.1 -f 1 -d 0 -v 3,13 -t 4,14
 ```
-first loads the epigenomic CNNs trained in step (1) on cell line K562 without dilation layers and with FFT loss. Then it uses the bottleneck representation as the input for the second task: predicting CAGE using the graphs extracted from HiChIP with FDR cutoff 0.1. Note that the validation (Chrs 3 and 13) and test (Chr 4 and 14) chromosomes are the same as step (1).
+first loads the epigenomic CNNs trained in step (1) on cell line K562 without dilation layers `-d 0` and with FFT loss `-f 1`. Then it uses the bottleneck representation as the input for the second task: predicting CAGE using the graphs extracted from HiChIP with FDR cutoff 0.1. Note that the validation (Chrs 3 and 13) and test (Chr 4 and 14) chromosomes are the same as step (1).
