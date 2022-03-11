@@ -3,7 +3,7 @@
 <img
   src="assets/distal_enhancers.png"
   alt="Alt text"
-  title="Optional title"
+  title=""
   style="display: inline-block; margin: 0 auto; max-width: 300px">
 
 **GraphReg** ([Chromatin interaction aware gene regulatory modeling with graph attention networks](https://www.biorxiv.org/content/10.1101/2021.03.31.437978v2.abstract)) is a graph neural network based gene regulation model which integrates DNA sequence, 1D epigenomic data (such as chromatin accessibility and histone modifications), and 3D chromatin conformation data (such as Hi-C, HiChIP, Micro-C, HiCAR) to predict gene expression in an informative way. **GraphReg** is a versatile model which can be used to answer interesting questions in regulatory genomics such as:
