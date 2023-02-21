@@ -183,17 +183,17 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx: ', explain_output_idx)
                                     shap_values_cnn = 0
                                     for j in range(1,1+10):
-                                        if organism == 'mouse' and i==9:
-                                            iv2 = i+10
+                                        if organism == 'mouse' and j==9:
+                                            iv2 = j+10
                                             it2 = 1
-                                        elif organism == 'mouse' and i==10:
+                                        elif organism == 'mouse' and j==10:
                                             iv2 = 1
                                             it2 = 2
                                         else:
-                                            iv2 = i+10
-                                            it2 = i+11
-                                        valid_chr_list = [i, iv2]
-                                        test_chr_list = [i+1, it2]
+                                            iv2 = j+10
+                                            it2 = j+11
+                                        valid_chr_list = [j, iv2]
+                                        test_chr_list = [j+1, it2]
 
                                         test_chr_str = [str(i) for i in test_chr_list]
                                         test_chr_str = ','.join(test_chr_str)
@@ -224,17 +224,17 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx_cnn: ', explain_output_idx_cnn)
                                     grads_cnn = 0
                                     for j in range(1,1+10):
-                                        if organism == 'mouse' and i==9:
-                                            iv2 = i+10
+                                        if organism == 'mouse' and j==9:
+                                            iv2 = j+10
                                             it2 = 1
-                                        elif organism == 'mouse' and i==10:
+                                        elif organism == 'mouse' and j==10:
                                             iv2 = 1
                                             it2 = 2
                                         else:
-                                            iv2 = i+10
-                                            it2 = i+11
-                                        valid_chr_list = [i, iv2]
-                                        test_chr_list = [i+1, it2]
+                                            iv2 = j+10
+                                            it2 = j+11
+                                        valid_chr_list = [j, iv2]
+                                        test_chr_list = [j+1, it2]
 
                                         test_chr_str = [str(i) for i in test_chr_list]
                                         test_chr_str = ','.join(test_chr_str)
@@ -271,17 +271,17 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx: ', explain_output_idx)
                                     shap_values_gat = 0
                                     for j in range(1,1+10):
-                                        if organism == 'mouse' and i==9:
-                                            iv2 = i+10
+                                        if organism == 'mouse' and j==9:
+                                            iv2 = j+10
                                             it2 = 1
-                                        elif organism == 'mouse' and i==10:
+                                        elif organism == 'mouse' and j==10:
                                             iv2 = 1
                                             it2 = 2
                                         else:
-                                            iv2 = i+10
-                                            it2 = i+11
-                                        valid_chr_list = [i, iv2]
-                                        test_chr_list = [i+1, it2]
+                                            iv2 = j+10
+                                            it2 = j+11
+                                        valid_chr_list = [j, iv2]
+                                        test_chr_list = [j+1, it2]
 
                                         test_chr_str = [str(i) for i in test_chr_list]
                                         test_chr_str = ','.join(test_chr_str)
@@ -313,17 +313,17 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                     print('explain_output_idx_gat: ', explain_output_idx_gat)
                                     grads_gat = 0
                                     for j in range(1,1+10):
-                                        if organism == 'mouse' and i==9:
-                                            iv2 = i+10
+                                        if organism == 'mouse' and j==9:
+                                            iv2 = j+10
                                             it2 = 1
-                                        elif organism == 'mouse' and i==10:
+                                        elif organism == 'mouse' and j==10:
                                             iv2 = 1
                                             it2 = 2
                                         else:
-                                            iv2 = i+10
-                                            it2 = i+11
-                                        valid_chr_list = [i, iv2]
-                                        test_chr_list = [i+1, it2]
+                                            iv2 = j+10
+                                            it2 = j+11
+                                        valid_chr_list = [j, iv2]
+                                        test_chr_list = [j+1, it2]
 
                                         test_chr_str = [str(i) for i in test_chr_list]
                                         test_chr_str = ','.join(test_chr_str)
@@ -397,8 +397,8 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
 ###################################### load model ######################################
 batch_size = 1
 organism = 'human'            # human/mouse
-genome='hg38'                 # hg19/hg38
-cell_line = ['hESC']          # K562/GM12878/mESC/hESC
+genome='hg19'                 # hg19/hg38
+cell_line = ['K562']          # K562/GM12878/mESC/hESC
 write_bw = True               # write the feature attribution scores to bigwig files
 load_fa = False               # load feature attribution numpy files
 saliency_method = 'saliency'  # 'saliency' or 'deepshap' 

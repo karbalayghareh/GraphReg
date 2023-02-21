@@ -56,7 +56,7 @@ def main():
       default='max',
       help='Summary statistic to compute in windows [Default: %default]')
   parser.add_option('-w',dest='pool_width',
-      default=5000, type='int',
+      default=100, type='int',
       help='Average pooling width [Default: %default]')
   (options, args) = parser.parse_args()
 
@@ -66,20 +66,21 @@ def main():
   organism = 'human'
   cell_line = 'GM12878'
   res = '5kb'
-  genome='hg19'
+  genome='hg38'
   data_path = '/media/labuser/STORAGE/GraphReg'
 
-  if organism == 'human':
-      chr_list = np.arange(1,1+22)
+  if organism == 'mouse':
+    chr_list = ['chr'+str(i) for i in range(1,20)] + ['chrX']
   else:
-      chr_list = np.arange(1,1+19)
+      chr_list = ['chr'+str(i) for i in range(1,23)] + ['chrX']
   
-  for i in chr_list:
-    print(i)
-    chr_temp = 'chr'+str(i)
-    genome_cov_file = data_path+'/data/'+cell_line+'/bam/GM12878_CAGE_binsize_5000bp.bigWig'
+  for chr_temp in chr_list:
+    print(chr_temp)
+    #genome_cov_file = data_path+'/data/'+cell_line+'/bam/GM12878_CAGE_binsize_5000bp.bigWig'
+    genome_cov_file = data_path+'/data/'+cell_line+'/distal_reg_paper_bam/GM12878_DNase.bigWig'
     seqs_bed_file = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr_temp+'.bed'
-    seqs_cov_file = data_path+'/data/'+cell_line+'/seqs_cov/CAGE_cov_RPGC_'+chr_temp+'.h5'
+    #seqs_cov_file = data_path+'/data/'+cell_line+'/seqs_cov/CAGE_cov_RPGC_'+chr_temp+'.h5'
+    seqs_cov_file = data_path+'/data/'+cell_line+'/seqs_cov/distal_reg_paper/DNase_cov_RPGC_'+chr_temp+'.h5'
 
     assert(options.crop_bp >= 0)
 

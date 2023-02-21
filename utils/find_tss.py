@@ -10,10 +10,10 @@ thr = 0                # only keep the tss bins whose distance from bin borders 
                        # (only applicable when want to consider the bins with 1 tss, otherwise thr = 0)
 data_path = '/media/labuser/STORAGE/GraphReg'
 
-if organism == 'human':
-    N = 22
+if organism == 'mouse':
+    chr_list = ['chr'+str(i) for i in range(1,20)] + ['chrX']
 else:
-    N = 19
+    chr_list = ['chr'+str(i) for i in range(1,23)] + ['chrX']
 
 n_tss_bins_all = 0
 n_tss_bins_all_1 = 0
@@ -23,20 +23,22 @@ n_tss_bins_all_4 = 0
 n_tss_bins_all_5 = 0
 n_tss_bins_all_6 = 0
 
-for ii in range(1,N+1):
-    chr = 'chr'+str(ii)
+for chr in chr_list:
 
     if organism == 'human' and genome == 'hg19':
        filename_tss = data_path+'/data/tss/'+organism+'/'+genome+'/hg19_gencodev19_tss.bed'
     elif organism == 'human' and genome == 'hg38':
-       filename_tss = data_path+'/data/tss/'+organism+'/'+genome+'/gencode.v38.annotation.gtf.tss.bed'
+       #filename_tss = data_path+'/data/tss/'+organism+'/'+genome+'/gencode.v38.annotation.gtf.tss.bed'
+       filename_tss = data_path+'/data/tss/'+organism+'/distal_regulation_group/'+genome+'/RefSeqCurated.170308.bed.CollapsedGeneBounds.hg38.TSS500bp.bed'
     elif organism == 'mouse':
         filename_tss = data_path+'/data/tss/'+organism+'/'+genome+'/mm10_gencode_vM9_tss.bed'
 
     tss_dataframe = pd.read_csv(filename_tss, header=None, delimiter='\t')
-    tss_dataframe.columns = ["chr", "tss_1", "tss_2", "ens", "gene", "strand", "type"]
+    #tss_dataframe.columns = ["chr", "tss_1", "tss_2", "ens", "gene", "strand", "type"]
+    tss_dataframe.columns = ["chr", "tss_1", "tss_2", "gene", "na", "strand"]
 
-    protein_coding_tss = tss_dataframe.loc[(tss_dataframe['type'] == 'protein_coding') & (tss_dataframe['chr'] == chr)]
+    #protein_coding_tss = tss_dataframe.loc[(tss_dataframe['type'] == 'protein_coding') & (tss_dataframe['chr'] == chr)]
+    protein_coding_tss = tss_dataframe[tss_dataframe['chr'] == chr]
     protein_coding_tss = protein_coding_tss.reset_index(drop=True)
     print(protein_coding_tss)
     n_tss = len(protein_coding_tss)
@@ -49,7 +51,8 @@ for ii in range(1,N+1):
     bin_end = seq_dataframe['end'].values
     n_bin = len(bin_start)
     print('number of bins: ', n_bin)
-    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/bin_start_'+chr, bin_start)
+    #np.save(data_path+'/data/tss/'+organism+'/'+genome+'/bin_start_'+chr, bin_start)
+    np.save(data_path+'/data/tss/'+organism+'/distal_regulation_group/'+genome+'/bin_start_'+chr, bin_start)
     
     
     ### write tss
@@ -78,7 +81,8 @@ for ii in range(1,N+1):
     n_tss_bins_all_6 = n_tss_bins_all_6 + np.sum(tss==6)
     
     print('number of tss: ', np.sum(tss).astype(np.int64))
-    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_bins_'+chr, tss)
+    #np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_bins_'+chr, tss)
+    np.save(data_path+'/data/tss/'+organism+'/distal_regulation_group/'+genome+'/tss_bins_'+chr, tss)
     
 
     ### find gene names and their tss positions in the bins 
@@ -101,8 +105,10 @@ for ii in range(1,N+1):
     print(len(pos_tss), pos_tss[0:800])
     print(len(gene_name), gene_name[:800])
     
-    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_'+chr, pos_tss)
-    np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_'+chr, gene_name)
+    #np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_pos_'+chr, pos_tss)
+    np.save(data_path+'/data/tss/'+organism+'/distal_regulation_group/'+genome+'/tss_pos_'+chr, pos_tss)
+    #np.save(data_path+'/data/tss/'+organism+'/'+genome+'/tss_gene_'+chr, gene_name)
+    np.save(data_path+'/data/tss/'+organism+'/distal_regulation_group/'+genome+'/tss_gene_'+chr, gene_name)
 
 print('number of all tss bins:', n_tss_bins_all)
 print('number of bins with 1 tss:', n_tss_bins_all_1)
@@ -112,6 +118,7 @@ print('number of bins with 4 tss:', n_tss_bins_all_4)
 print('number of bins with 5 tss:', n_tss_bins_all_5)
 print('number of bins with 6 tss:', n_tss_bins_all_6)
 
-protein_coding_tss_all = tss_dataframe.loc[tss_dataframe['type'] == 'protein_coding']
-print('number of all tss: ', len(protein_coding_tss_all))
+#protein_coding_tss_all = tss_dataframe.loc[tss_dataframe['type'] == 'protein_coding']
+#print('number of all tss: ', len(protein_coding_tss_all))
 
+print('number of all tss: ', len(tss_dataframe))

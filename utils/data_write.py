@@ -73,10 +73,10 @@ def main():
   organism = 'human'          # human/mouse
   res = '5kb'                 # 5kb/10kb
   cell_line = 'GM12878'          # K562/GM12878/hESC/mESC
-  genome='hg19'               # hg19/hg38/mm10
+  genome='hg38'               # hg19/hg38/mm10
   model = 'epi'               # seq/epi
   assay_type = 'HiC'        # HiC/HiChIP/MicroC/HiCAR
-  qval = 0.001                    # 0.1/0.01/0.001
+  qval = 0.9                    # 0.1/0.01/0.001
   data_path = '/media/labuser/STORAGE/GraphReg'
 
   if qval == 0.1:
@@ -85,26 +85,30 @@ def main():
     fdr = '01'
   elif qval == 0.001:
     fdr = '001'
+  elif qval == 0.5:
+      fdr = '5'
+  elif qval == 0.9:
+      fdr = '9'
 
   if organism == 'human' and genome == 'hg19':
-      chr_list = np.arange(1,1+22)
+      chr_list = ['chr'+str(i) for i in range(1,23)] + ['chrX']
       fasta_file = data_path+'/data/genome/hg19.ml.fa'
   elif organism == 'human' and genome == 'hg38':
-      chr_list = np.arange(1,1+22)
+      chr_list = ['chr'+str(i) for i in range(1,23)] + ['chrX']
       fasta_file = data_path+'/data/genome/GRCh38.primary_assembly.genome.fa'
   elif organism == 'mouse':
-      chr_list = np.arange(1,1+19)
+      chr_list = ['chr'+str(i) for i in range(1,20)] + ['chrX']
       fasta_file = data_path+'/data/genome/mm10.fa'
 
   np.random.seed(0)
 
-  q = np.zeros(3)
-  for i in chr_list:
-    print('chr ', i)
-    chr_temp = 'chr'+str(i)
+  #q = np.zeros(3)
+  for chr_temp in chr_list:
+    print(chr_temp)
     seqs_bed_file = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/'+res+'/sequences_'+chr_temp+'.bed'
     #tfr_file = data_path+'/data/tfrecords/tfr_'+model+'_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr_temp+'.tfr'
-    tfr_file = data_path+'/data/tfrecords/tfr_'+model+'_RPGC_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr_temp+'.tfr'
+    #tfr_file = data_path+'/data/tfrecords/tfr_'+model+'_RPGC_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr_temp+'.tfr'
+    tfr_file = data_path+'/data/tfrecords/distal_reg_paper/tfr_'+model+'_RPGC_'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr_temp+'.tfr'
 
 
     ################################################################
@@ -123,13 +127,13 @@ def main():
     ################################################################
     # determine sequence coverage files
 
-    seqs_cov_files = [data_path+'/data/'+cell_line+'/seqs_cov/CAGE_cov_RPGC_'+chr_temp+'.h5',
-                      data_path+'/data/'+cell_line+'/seqs_cov/H3K4me3_cov_RPGC_'+chr_temp+'.h5',
-                      data_path+'/data/'+cell_line+'/seqs_cov/H3K27ac_cov_RPGC_'+chr_temp+'.h5',
+    seqs_cov_files = [data_path+'/data/'+cell_line+'/seqs_cov/distal_reg_paper/CAGE_cov_RPGC_'+chr_temp+'.h5',
+                      data_path+'/data/'+cell_line+'/seqs_cov/distal_reg_paper/H3K4me3_cov_RPGC_'+chr_temp+'.h5',
+                      data_path+'/data/'+cell_line+'/seqs_cov/distal_reg_paper/H3K27ac_cov_RPGC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov/H3K4me1_cov_FC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov/H3K27me3_cov_FC_'+chr_temp+'.h5',
                       #data_path+'/data/'+cell_line+'/seqs_cov/CTCF_cov_FC_'+chr_temp+'.h5',
-                      data_path+'/data/'+cell_line+'/seqs_cov/DNase_cov_RPGC_'+chr_temp+'.h5'
+                      data_path+'/data/'+cell_line+'/seqs_cov/distal_reg_paper/DNase_cov_RPGC_'+chr_temp+'.h5'
                       ]
     seq_pool_len = h5py.File(seqs_cov_files[1], 'r')['seqs_cov'].shape[1]
     num_targets = len(seqs_cov_files)
@@ -152,7 +156,7 @@ def main():
       if ti > 0:
         if model == 'epi':
           tmp = np.log2(tmp+1)                  # log normalize
-          #if i == 1:
+          #if chr_temp == "chr1":
           #  q[ti-1] = np.max(tmp.ravel())
           #x_max = q[ti-1]
           #x_min = np.min(tmp.ravel())
@@ -189,16 +193,19 @@ def main():
     # write TFRecords
 
     # Graph from HiC
-    hic_matrix_file = data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+assay_type+'_matrix_FDR_'+fdr+'_'+chr_temp+'.npz'
+    #hic_matrix_file = data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+assay_type+'_matrix_FDR_'+fdr+'_'+chr_temp+'.npz'
+    hic_matrix_file = data_path+'/data/'+cell_line+'/distal_reg_paper_hic/'+assay_type+'/'+assay_type+'_matrix_FDR_'+fdr+'_'+chr_temp+'.npz'
     sparse_matrix = scipy.sparse.load_npz(hic_matrix_file)
     hic_matrix = sparse_matrix.todense()
     print('hic_matrix shape: ', hic_matrix.shape)
 
-    tss_bin_file = data_path+'/data/tss/'+organism+'/'+genome+'/tss_bins_'+chr_temp+'.npy'
+    #tss_bin_file = data_path+'/data/tss/'+organism+'/'+genome+'/tss_bins_'+chr_temp+'.npy'
+    tss_bin_file = data_path+'/data/tss/'+organism+'/distal_reg_paper/'+genome+'/tss_bins_'+chr_temp+'.npy'
     tss_bin = np.load(tss_bin_file, allow_pickle=True)
     print('num tss:', np.sum(tss_bin))
 
-    bin_start_file = data_path+'/data/tss/'+organism+'/'+genome+'/bin_start_'+chr_temp+'.npy'
+    #bin_start_file = data_path+'/data/tss/'+organism+'/'+genome+'/bin_start_'+chr_temp+'.npy'
+    bin_start_file = data_path+'/data/tss/'+organism+'/distal_reg_paper/'+genome+'/bin_start_'+chr_temp+'.npy'
     bin_start = np.load(bin_start_file, allow_pickle=True)
     print('bin start:', bin_start)
 
@@ -283,7 +290,8 @@ def main():
 
       print('check symetric: ', check_symmetric(adj))
       print('number of batches: ', n_batch)
-      print('q: ', q)
+      print('###########################################')
+
       
 def _bytes_feature(value):
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))

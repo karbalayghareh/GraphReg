@@ -32,6 +32,10 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import auc
 import statsmodels.stats.multitest as fdr
+# Needed for Illustrator
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['font.family'] = ['Arial','Helvetica']
 
 data_path = '/media/labuser/STORAGE/GraphReg'   # data path
 qval = .1                                       # 0.1, 0.01, 0.001
@@ -521,7 +525,7 @@ TFs = np.delete(TFs,9)
 print('TFs: ', TFs)
 
 ### log2FC distribution ###
-n_min = 5
+n_min = 0
 CAGE_min = 20
 
 mean_gr = np.array([])
@@ -590,7 +594,7 @@ add_stat_annotation(ax1, data=df_sns, x='Method', y='Mean',
 b=sns.swarmplot(x='Method', y='Mean', data=df_sns, color = 'black', alpha=.3, size=8, ax=ax1)
 ax1.yaxis.set_tick_params(labelsize=20)
 ax1.xaxis.set_tick_params(labelsize=20)
-ax1.set_title('n >= '+str(n_min), fontsize=20)
+ax1.set_title(r'$n \geq$'+str(n_min), fontsize=20)
 b.set_xlabel("",fontsize=20)
 b.set_ylabel("Mean Log2FC",fontsize=20)
 #plt.setp(ax1.get_legend().get_texts(), fontsize='15')
@@ -607,7 +611,7 @@ add_stat_annotation(ax1, data=df_sns, x='Method', y='Fraction',
 b=sns.swarmplot(x='Method', y='Fraction', data=df_sns, color = 'black', alpha=.3, size=8, ax=ax1)
 ax1.yaxis.set_tick_params(labelsize=20)
 ax1.xaxis.set_tick_params(labelsize=20)
-ax1.set_title('n >= '+str(n_min), fontsize=20)
+ax1.set_title(r'$n \geq$'+str(n_min), fontsize=20)
 b.set_xlabel("",fontsize=20)
 b.set_ylabel("Precision",fontsize=20)
 #plt.setp(ax1.get_legend().get_texts(), fontsize='15')
@@ -622,7 +626,7 @@ df_hm = pd.DataFrame(data=mean, index=['Seq-GraphReg', 'Seq-CNN'], columns=TF_hm
 df_hm = df_hm.sort_values(by=['Seq-GraphReg'], axis = 1)
 plt.figure(figsize = (20,3.5))
 ax = sns.heatmap(df_hm, xticklabels=1, yticklabels=1, cmap="coolwarm", annot=df_hm, annot_kws={'rotation': 90})
-ax.set_title('n >= '+str(n_min), fontsize=20)
+ax.set_title(r'$n \geq$'+str(n_min), fontsize=20)
 ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 20, rotation=0)
 ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 20, rotation=90)
 cbar = ax.collections[0].colorbar
@@ -637,7 +641,7 @@ df_hm = pd.DataFrame(data=Fraction, index=['Seq-GraphReg', 'Seq-CNN'], columns=T
 df_hm = df_hm.sort_values(by=['Seq-GraphReg'], ascending=False, axis = 1)
 plt.figure(figsize = (20,3.5))
 ax = sns.heatmap(df_hm, xticklabels=1, yticklabels=1, cmap="YlGnBu", annot=df_hm, annot_kws={'rotation': 90})
-ax.set_title('n >= '+str(n_min), fontsize=20)
+ax.set_title(r'$n \geq$'+str(n_min), fontsize=20)
 ax.set_yticklabels(ax.get_ymajorticklabels(), fontsize = 20, rotation=0)
 ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize = 20, rotation=90)
 cbar = ax.collections[0].colorbar
@@ -671,7 +675,7 @@ cbar = ax.collections[0].colorbar
 cbar.set_label(label='Log2FC', size=30)
 cbar.ax.tick_params(labelsize=30)
 plt.tight_layout()
-plt.savefig('../figs/TF_KO/topgenes_GraphReg_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'.png')
+plt.savefig('../figs/TF_KO/topgenes_GraphReg_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'.pdf')
 
 df_topgenes_cnn = pd.DataFrame(mat_cnn_all, columns=TF_hm)
 plt.figure(figsize = (33,20))
@@ -683,7 +687,7 @@ cbar = ax.collections[0].colorbar
 cbar.set_label(label='Log2FC', size=30)
 cbar.ax.tick_params(labelsize=30)
 plt.tight_layout()
-plt.savefig('../figs/TF_KO/topgenes_CNN_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'.png')
+plt.savefig('../figs/TF_KO/topgenes_CNN_min_CAGE_'+str(CAGE_min)+'_n_min_'+str(n_min)+'.pdf')
 
 ### plot clustermaps ###
 '''

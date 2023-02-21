@@ -4,31 +4,35 @@ import time
 import os
 import scipy.sparse
 
-
-##### write seqs #####
 '''
+##### write seqs #####
+
+data_path = '/media/labuser/STORAGE/GraphReg'
 T = 400
 TT = T + T//2
 organism = 'human'
 genome='hg38'
-for i in range(1,22+1):
-    chr = 'chr'+str(i)
+if organism == 'mouse':
+    chr_list = ['chr'+str(i) for i in range(1,20)] + ['chrX']
+else:
+    chr_list = ['chr'+str(i) for i in range(1,23)] + ['chrX']
+
+for i, chr in enumerate(chr_list):
     filename_seqs = data_path+'/data/csv/seqs_bed/'+organism+'/'+genome+'/5kb/sequences_'+chr+'.bed'
     seq_dataframe = pd.DataFrame(data = [], columns = ["chr", "start", "end"])
-    chrom = i
 
     if organism=='human' and genome=='hg19':
        chr_len = [249235000, 243185000, 197960000, 191040000, 180905000, 171050000, 159125000, 146300000, 141150000, 135520000, 134945000,
-                       133840000, 115105000, 107285000, 102520000, 90290000, 81190000, 78015000, 59115000, 62965000, 48115000, 51240000]
+                       133840000, 115105000, 107285000, 102520000, 90290000, 81190000, 78015000, 59115000, 62965000, 48115000, 51240000, 155265000]
     elif organism=='human' and genome=='hg38':
        chr_len = [248950000, 242185000, 198290000, 190205000, 181530000, 170800000, 159340000, 145130000, 138385000, 133790000, 135080000,
-                       133270000, 114355000, 107035000, 101985000, 90330000, 83250000, 80365000, 58610000, 64435000, 46700000, 50810000]
+                       133270000, 114355000, 107035000, 101985000, 90330000, 83250000, 80365000, 58610000, 64435000, 46700000, 50810000, 156035000]
     elif organism=='mouse':
        chr_len = [195465000, 182105000, 160030000, 156500000, 151825000, 149730000, 145435000, 129395000, 124590000, 130685000, 122075000, 
-               120120000, 120415000, 124895000, 104035000, 98200000, 94980000, 90695000, 61425000]
+               120120000, 120415000, 124895000, 104035000, 98200000, 94980000, 90695000, 61425000, 171025000]
 
     nodes_list = []
-    for i in range(0, chr_len[chrom-1]+5000, 5000):
+    for i in range(0, chr_len[i]+5000, 5000):
         nodes_list.append(i)
     nodes_list = np.array(nodes_list)
     left_padding = np.zeros(TT).astype(int)
@@ -42,14 +46,15 @@ for i in range(1,22+1):
     seq_dataframe.to_csv(filename_seqs, index = False, header = False, sep = '\t')
 '''
 
+
 ##### extract hic from the output files of HiCDC+ #####
 
-cell_line = 'hESC'           # GM12878/K562/hESC/mESC
+cell_line = 'GM12878'           # GM12878/K562/hESC/mESC
 organism = 'human'           # human/mouse
 res = '5kb'                  # 5kb/10kb
 genome = 'hg38'                # hg19/hg38/mm10
-assay_type = 'HiCAR'        # HiC/HiChIP/MicroC/HiCAR
-qval = 0.001                    # 0.1/0.01/0.001
+assay_type = 'HiC'        # HiC/HiChIP/MicroC/HiCAR
+qval = 0.9                    # 0.1/0.01/0.001
 data_path = '/media/labuser/STORAGE/GraphReg'
 
 if qval == 0.1:
@@ -58,17 +63,21 @@ elif qval == 0.01:
     fdr = '01'
 elif qval == 0.001:
     fdr = '001'
+elif qval == 0.5:
+    fdr = '5'
+elif qval == 0.9:
+    fdr = '9'
 
 if organism == 'mouse':
-    N = 19
+    chr_list = ['chr'+str(i) for i in range(1,20)] + ['chrX']
 else:
-    N = 22
+    chr_list = ['chr'+str(i) for i in range(1,23)] + ['chrX']
 
 
-for i in range(1,N+1):
+for chr in chr_list:
 
-    chr = 'chr'+str(i)
-    filename_hic = data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr
+    #filename_hic = data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr
+    filename_hic = data_path+'/data/'+cell_line+'/distal_reg_paper_hic/'+assay_type+'/'+cell_line+'_'+assay_type+'_FDR_'+fdr+'_'+chr
     hic_dataframe = pd.read_csv(filename_hic, header=None, delimiter='\t')
     hic_dataframe.columns = ["chr", "start_i", "start_j", "qval", "count"]
     print(hic_dataframe)
@@ -109,5 +118,5 @@ for i in range(1,N+1):
     hic_sym = hic_sym.astype(np.float32)
     print(hic_sym[2000:2020,2000:2020])
     sparse_matrix = scipy.sparse.csr_matrix(hic_sym)
-    scipy.sparse.save_npz(data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+assay_type+'_matrix_FDR_'+fdr+'_'+chr+'.npz', sparse_matrix)
-
+    #scipy.sparse.save_npz(data_path+'/data/'+cell_line+'/hic/'+assay_type+'/'+assay_type+'_matrix_FDR_'+fdr+'_'+chr+'.npz', sparse_matrix)
+    scipy.sparse.save_npz(data_path+'/data/'+cell_line+'/distal_reg_paper_hic/'+assay_type+'/'+assay_type+'_matrix_FDR_'+fdr+'_'+chr+'.npz', sparse_matrix)

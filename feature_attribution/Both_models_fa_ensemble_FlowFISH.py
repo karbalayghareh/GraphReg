@@ -196,6 +196,7 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
     auprc_e_cnn_saliency = np.array([])
     auprc_s_cnn_saliency = np.array([])
     D = np.array([])
+    df_with_enhancer_preds = pd.DataFrame()
 
     for num, cell_line in enumerate(cell_lines):
         for i, chrm in enumerate(chr_list):
@@ -265,6 +266,9 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 print('ABC AP score: ', average_precision_score(Y_true, Y_pred_abc))
                                 print('ABC AUPRC score: ', auc(recall_abc, precision_abc))
 
+                                cut_flowfish['Regulated'] = Y_true
+
+
                             ############# Feature Attribution of CNN #############
 
                             ##### Epi-CNN deepshap #####
@@ -296,6 +300,8 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 print('Epi-CNN Deepshap AP score: ', average_precision_score(Y_true, Y_pred_cnn))
                                 print('Epi-CNN Deepshap AUPRC score: ', auc(recall_cnn, precision_cnn))
 
+                                cut_flowfish['Epi-CNN_deepshap_score'] = cnn_fa_gene
+
                             ##### Epi-CNN saliency #####
                             saliency_method = 'saliency'
                             grads_cnn = np.load(data_path+'/results/numpy/feature_attribution/Epi-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
@@ -325,6 +331,8 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 print('Epi-CNN Saliency AP score: ', average_precision_score(Y_true, Y_pred_cnn))
                                 print('Epi-CNN Saliency AUPRC score: ', auc(recall_cnn, precision_cnn))
 
+                                cut_flowfish['Epi-CNN_saliency_score'] = cnn_fa_gene
+
                             ##### Seq-CNN saliency #####
                             saliency_method = 'saliency'
                             grads_cnn = np.load(data_path+'/results/numpy/feature_attribution/Seq-CNN_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
@@ -353,6 +361,8 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 auprc_s_cnn_saliency = np.append(auprc_s_cnn_saliency, auc(recall_cnn, precision_cnn))
                                 print('Seq-CNN Saliency AP score: ', average_precision_score(Y_true, Y_pred_cnn))
                                 print('Seq-CNN Saliency AUPRC score: ', auc(recall_cnn, precision_cnn))
+
+                                cut_flowfish['Seq-CNN_saliency_score'] = cnn_fa_gene
 
 
                             ############# Feature Attribution of GraphReg #############
@@ -386,6 +396,8 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 print('Epi-GraphReg Deepshap AP score: ', average_precision_score(Y_true, Y_pred_graphreg))
                                 print('Epi-GraphReg Deepshap AUPRC score: ', auc(recall_graphreg, precision_graphreg))
 
+                                cut_flowfish['Epi-GraphReg_deepshap_score'] = graphreg_fa_gene
+
                             ##### Epi-GraphReg saliency #####
                             saliency_method = 'saliency'
                             shap_values_e_graphreg = np.load(data_path+'/results/numpy/feature_attribution/Epi-GraphReg_'+saliency_method+'_'+cell_line+'_'+gene_names_list[i]+'.npy')
@@ -414,6 +426,8 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 auprc_e_graphreg_saliency = np.append(auprc_e_graphreg_saliency, auc(recall_graphreg, precision_graphreg))
                                 print('Epi-GraphReg Saliency AP score: ', average_precision_score(Y_true, Y_pred_graphreg))
                                 print('Epi-GraphReg Saliency AUPRC score: ', auc(recall_graphreg, precision_graphreg))
+
+                                cut_flowfish['Epi-GraphReg_saliency_score'] = graphreg_fa_gene
 
                             ##### Seq-GraphReg saliency #####
                             saliency_method = 'saliency'
@@ -444,6 +458,9 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
                                 print('Seq-GraphReg Saliency AP score: ', average_precision_score(Y_true, Y_pred_graphreg))
                                 print('Seq-GraphReg Saliency AUPRC score: ', auc(recall_graphreg, precision_graphreg))
 
+                                cut_flowfish['Seq-GraphReg_saliency_score'] = graphreg_fa_gene
+                                df_with_enhancer_preds = df_with_enhancer_preds.append(cut_flowfish, ignore_index=False)
+
 
                 else:
                     break
@@ -460,16 +477,16 @@ def calculate_loss(cell_lines, gene_names_list, gene_tss_list, chr_list, batch_s
             abc_all, 
             e_graphreg_fa_all_deepshap, e_graphreg_fa_all_saliency, s_graphreg_fa_all_saliency,
             e_cnn_fa_all_deepshap, e_cnn_fa_all_saliency, s_cnn_fa_all_saliency, 
-            expr_change_percent_all, significant_flowfish, D)
+            expr_change_percent_all, significant_flowfish, D, df_with_enhancer_preds)
 
 
 ###################################### load model ######################################
 batch_size = 1
 organism = 'human'            # human/mouse
 cell_line = ['K562']          # K562/GM12878/mESC
-dist = 0                      # minimum distance from TSS
+dist = 0                      # minimum distance from TSS / dist = 10000 for MYC
 n_enh = 1                     # number of enhancers >= n_enh
-L = 40
+L = 40                        # L = 10 for MYC
 
 chr_list = np.array([])
 gene_tss_list = np.array([], dtype=np.int)
@@ -485,9 +502,9 @@ for gene in gene_names_list:
     chr_list = np.append(chr_list, cut['chr'].values[0])
     gene_tss_list = np.append(gene_tss_list, cut['Gene.TSS'].values[0])
 
-# gene_names_list = ['MYC']
-# chr_list = ['chr8']
-# gene_tss_list = [128748314]
+#gene_names_list = ['MYC']
+#chr_list = ['chr8']
+#gene_tss_list = [128748314]
 
 print(len(gene_names_list), gene_names_list)
 print(len(chr_list), chr_list)
@@ -506,8 +523,11 @@ print(len(gene_tss_list), gene_tss_list)
     abc_all, 
     e_graphreg_fa_all_deepshap, e_graphreg_fa_all_saliency, s_graphreg_fa_all_saliency,
     e_cnn_fa_all_deepshap, e_cnn_fa_all_saliency, s_cnn_fa_all_saliency, 
-    expr_change_percent_all, significant_flowfish, D) = calculate_loss(cell_line, gene_names_list, gene_tss_list, chr_list, batch_size, data_frame_flowfish, n_enh, L)
+    expr_change_percent_all, significant_flowfish, D, df_with_enhancer_preds) = calculate_loss(cell_line, gene_names_list, gene_tss_list, chr_list, batch_size, data_frame_flowfish, n_enh, L)
     
+# save enhancer predictions
+df_with_enhancer_preds.to_csv(data_path+'/data/csv/EG_predictions_FlowFISH.csv', sep = '\t', index=False)
+
 
 color_significant = []
 for ii in significant_flowfish:
@@ -915,20 +935,24 @@ plt.savefig('../figs/flowfish/Seq-CNN_saliency_vs_Dist_scatter_plot_K562.png')
 
 
 ####### Precision-Recall #######
-Y_true = np.zeros(len(significant_flowfish), dtype=int)
-idx = np.where(significant_flowfish==1)[0]
-Y_true[idx] = 1
+#Y_true = np.zeros(len(significant_flowfish), dtype=int)
+#idx = np.where(significant_flowfish==1)[0]
+#Y_true[idx] = 1
+
+Y_true = df_with_enhancer_preds['Regulated'].values
+Y_pred_abc = df_with_enhancer_preds['ABC.Score'].values
 
 # ABC
-Y_pred_abc = abc_all
+#Y_pred_abc = abc_all
 precision_abc, recall_abc, thresholds_abc = precision_recall_curve(Y_true, Y_pred_abc)
-
 average_precision_abc = average_precision_score(Y_true, Y_pred_abc)
 auprc_abc_all = auc(recall_abc, precision_abc)
 
 # Epi-models deepshap
-Y_pred_gat = e_graphreg_fa_all_deepshap
-Y_pred_cnn = e_cnn_fa_all_deepshap
+#Y_pred_gat = e_graphreg_fa_all_deepshap
+#Y_pred_cnn = e_cnn_fa_all_deepshap
+Y_pred_gat = df_with_enhancer_preds['Epi-GraphReg_deepshap_score'].values
+Y_pred_cnn = df_with_enhancer_preds['Epi-CNN_deepshap_score'].values
 
 precision_e_graphreg_deepshap, recall_e_graphreg_deepshap, thresholds_e_graphreg_deepshap = precision_recall_curve(Y_true, Y_pred_gat)
 ap_e_graphreg_all_deepshap = average_precision_score(Y_true, Y_pred_gat)
@@ -939,8 +963,10 @@ ap_e_cnn_all_deepshap = average_precision_score(Y_true, Y_pred_cnn)
 auprc_e_cnn_all_deepshap = auc(recall_e_cnn_deepshap, precision_e_cnn_deepshap)
 
 # Epi-models saliency
-Y_pred_gat = e_graphreg_fa_all_saliency
-Y_pred_cnn = e_cnn_fa_all_saliency
+#Y_pred_gat = e_graphreg_fa_all_saliency
+#Y_pred_cnn = e_cnn_fa_all_saliency
+Y_pred_gat = df_with_enhancer_preds['Epi-GraphReg_saliency_score'].values
+Y_pred_cnn = df_with_enhancer_preds['Epi-CNN_saliency_score'].values
 
 precision_e_graphreg_saliency, recall_e_graphreg_saliency, thresholds_e_graphreg_saliency = precision_recall_curve(Y_true, Y_pred_gat)
 ap_e_graphreg_all_saliency = average_precision_score(Y_true, Y_pred_gat)
@@ -951,8 +977,10 @@ ap_e_cnn_all_saliency = average_precision_score(Y_true, Y_pred_cnn)
 auprc_e_cnn_all_saliency = auc(recall_e_cnn_saliency, precision_e_cnn_saliency)
 
 # Seq-models saliency
-Y_pred_gat = s_graphreg_fa_all_saliency
-Y_pred_cnn = s_cnn_fa_all_saliency
+#Y_pred_gat = s_graphreg_fa_all_saliency
+#Y_pred_cnn = s_cnn_fa_all_saliency
+Y_pred_gat = df_with_enhancer_preds['Seq-GraphReg_saliency_score'].values
+Y_pred_cnn = df_with_enhancer_preds['Seq-CNN_saliency_score'].values
 
 precision_s_graphreg_saliency, recall_s_graphreg_saliency, thresholds_s_graphreg_saliency = precision_recall_curve(Y_true, Y_pred_gat)
 ap_s_graphreg_all_saliency = average_precision_score(Y_true, Y_pred_gat)
@@ -980,6 +1008,26 @@ plt.tick_params(axis='x', labelsize=40)
 plt.tick_params(axis='y', labelsize=40)
 #plt.tight_layout()
 plt.savefig('../figs/flowfish/PR_curve.pdf', bbox_inches='tight')
+
+if len(gene_names_list) == 1 and gene_names_list[0] == 'MYC':
+    plt.figure(figsize=(10,10))
+    plt.plot(recall_abc, precision_abc, color='lightgreen', linewidth=3, label="ABC: AUC = "+str(auprc_abc_all.astype(np.float16)))
+    plt.plot(recall_e_graphreg_deepshap, precision_e_graphreg_deepshap, color='orange', linewidth=3, label="Epi-GraphReg (DeepSHAP): AUC = "+str(auprc_e_graphreg_all_deepshap.astype(np.float16)))
+    plt.plot(recall_e_graphreg_saliency, precision_e_graphreg_saliency, color='orange', linewidth=3, linestyle='--', label="Epi-GraphReg (Saliency): AUC = "+str(auprc_e_graphreg_all_saliency.astype(np.float16)))
+    plt.plot(recall_s_graphreg_saliency, precision_s_graphreg_saliency, color='orange', linewidth=3, linestyle=':', label="Seq-GraphReg (Saliency): AUC = "+str(auprc_s_graphreg_all_saliency.astype(np.float16)))
+
+    plt.plot(recall_e_cnn_deepshap, precision_e_cnn_deepshap, color='deepskyblue', linewidth=3, label="Epi-CNN (DeepSHAP): AUC = "+str(auprc_e_cnn_all_deepshap.astype(np.float16)))
+    plt.plot(recall_e_cnn_saliency, precision_e_cnn_saliency, color='deepskyblue', linewidth=3, linestyle='--', label="Epi-CNN (Saliency): AUC = "+str(auprc_e_cnn_all_saliency.astype(np.float16)))
+    plt.plot(recall_s_cnn_saliency, precision_s_cnn_saliency, color='deepskyblue', linewidth=3, linestyle=':', label="Seq-CNN (Saliency): AUC = "+str(auprc_s_cnn_all_saliency.astype(np.float16)))
+
+    plt.title('MYC | DE-G Pairs ('+str(len(Y_true))+')', fontsize=40)
+    plt.legend(bbox_to_anchor=(1.01, 1), borderaxespad=0, fontsize=40)
+    plt.xlabel("Recall", fontsize=40)
+    plt.ylabel("Precision", fontsize=40)
+    plt.tick_params(axis='x', labelsize=40)
+    plt.tick_params(axis='y', labelsize=40)
+    #plt.tight_layout()
+    plt.savefig('../figs/flowfish/PR_curve_MYC.pdf', bbox_inches='tight')
 
 
 ##### SP ######
